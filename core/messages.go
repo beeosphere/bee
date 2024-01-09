@@ -36,7 +36,7 @@ type Command string
 
 const (
 	Unknown Command = ""
-	Sync            = "SYNC"
+	Deploy          = "DEPLOY"
 	// Startup          = "STARTUP"
 	// Shutdown = "SHUTDOWN"
 )

@@ -37,7 +37,7 @@ func (p *publisher) Publish(topic string, data interface{}) error {
 		}
 	}
 	if p.prefix == beeosDataPrefix {
-		topic = beeosDataPrefix + topic
+		topic = beeosDataPrefixWithDot + topic
 	}
 
 	log.Debugf("Publish to '%s'\n", topic)

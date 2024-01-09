@@ -1,0 +1,15 @@
+How to Use a Private Go Module in Your Own Project
+https://www.digitalocean.com/community/tutorials/how-to-use-a-private-go-module-in-your-own-project
+
+Build secrets and SSH forwarding in Docker 18.09
+https://medium.com/@tonistiigi/build-secrets-and-ssh-forwarding-in-docker-18-09-ae8161d066
+
+Dealing with private repositories, Go modules, Docker and CircleCI
+https://codilime.com/blog/dealing-with-private-repositories-go-modules-docker-circleci/
+
+Dockerfile reference
+https://docs.docker.com/engine/reference/builder/#run
+
+Docker distroless images
+https://github.com/GoogleContainerTools/distroless
+

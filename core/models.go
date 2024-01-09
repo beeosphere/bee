@@ -1,6 +1,9 @@
 package core
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"time"
+)
 
 // BEE CONFIGURATION
 type BeeConfiguration struct {
@@ -36,4 +39,37 @@ type ChannelStream struct {
 	Direction   string            `json:"direction"`
 	Attributres map[string]string `json:"attributes,omitempty"`
 	// Settings
+}
+
+// DEPLOYMENTS
+type ResourceBinding struct {
+	Id   string `json:"id"`
+	Hash string `json:"hash"`
+}
+type DeployBinding struct {
+	AgentId    string            `json:"agentId"`
+	HiveId     string            `json:"hiveId"`
+	ConfigId   string            `json:"configId"`
+	ConfigHash string            `json:"configHash"`
+	Resources  []ResourceBinding `json:"resources,omitempty"`
+}
+
+func (b *DeployBinding) IsEmpty() bool {
+	return b.ConfigId == "" && b.ConfigHash == ""
+}
+
+type DeployRequest struct {
+	AgentId   string    `json:"agentId"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+type Deployed struct {
+	AgentId   string    `json:"agentId"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+type DeployFailed struct {
+	AgentId   string    `json:"agentId"`
+	Timestamp time.Time `json:"timestamp"`
+	Error     string    `json:"error"`
 }

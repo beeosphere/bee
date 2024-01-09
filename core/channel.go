@@ -2,14 +2,16 @@ package core
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"text/template"
 )
 
 type Channel interface {
 	Start(proxy ChannelProxy) error
-	Restart() error
+	Configure(data *ChannelInfo) error
 	Stop() error
 }
 
@@ -36,6 +38,38 @@ func UseChannelMessagingReceiver(proxy ChannelProxy, receiver ChannelReceiver) {
 			}
 		}
 	}()
+}
+
+func DeserializeConfig[TSettings any, TMapping any](data *ChannelInfo) (*TSettings, map[string]*TMapping, error) {
+	settings, err := DeserializeSettings[TSettings](data)
+	if err != nil {
+		return nil, nil, err
+	}
+	mappings, err := DeserializeMappings[TMapping](data)
+	if err != nil {
+		return nil, nil, err
+	}
+	return settings, mappings, nil
+}
+
+func DeserializeSettings[TSettings any](data *ChannelInfo) (*TSettings, error) {
+	var settings TSettings
+	if err := json.Unmarshal(data.Settings, &settings); err != nil {
+		return nil, err
+	}
+	return &settings, nil
+}
+
+func DeserializeMappings[TMapping any](data *ChannelInfo) (map[string]*TMapping, error) {
+	mappings := make(map[string]*TMapping)
+	for mappingId, mappingData := range data.Mappings {
+		var mapping TMapping
+		if err := json.Unmarshal(mappingData, &mapping); err != nil {
+			return nil, err
+		}
+		mappings[mappingId] = &mapping
+	}
+	return mappings, nil
 }
 
 type ChannelInfo struct {
@@ -130,7 +164,8 @@ func (c *channelProxy) configureSubscriptions(channelConfig *ChannelConfiguratio
 		}
 	}
 	if len(errorMsgs) > 0 {
-		return errors.New("Managing subscribers error") // TODO: Specific error wrapping all the error messages
+		fmt.Println("ERRORS:", errorMsgs)
+		return errors.New("managing subscribers error") // TODO: Specific error wrapping all the error messages
 	}
 	return nil
 }

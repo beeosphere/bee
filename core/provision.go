@@ -13,8 +13,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func ErrAuthLogin(err error) error { return fmt.Errorf("Auth error: %w", err) }
-func ErrKeyFormat(err error) error { return fmt.Errorf("Private key format error: %w", err) }
+func ErrAuthLogin(err error) error { return fmt.Errorf("auth error: %w", err) }
+func ErrKeyFormat(err error) error { return fmt.Errorf("private key format error: %w", err) }
 
 type provisioner struct {
 	session *session
@@ -44,12 +44,12 @@ func (p *provisioner) openSession(ctx context.Context) error {
 	}
 	counter := 0
 	for {
-		err = p.http.Get(ctx, fmt.Sprintf("bees/%s/login?pubkey=%s", p.session.bee, pubKey), &data)
+		err = p.http.Get(ctx, fmt.Sprintf("api/agents/%s/login?pubkey=%s", p.session.bee, pubKey), &data)
 		if err != nil && isEConnRefused(err) {
 
 			select {
 			case <-ctx.Done():
-				return errors.New("Open session cancelled")
+				return errors.New("open session cancelled")
 			case <-time.After(2 * time.Second):
 				if counter == 0 {
 					log.Warn("Hive not reachable. Trying to connect...")
@@ -63,6 +63,9 @@ func (p *provisioner) openSession(ctx context.Context) error {
 
 	// Signs and encodes received nonce
 	signedNonce, err := keys.Sign([]byte(data.Nonce))
+	if err != nil {
+		return ErrKeyFormat(err) // TODO: check if this is the right error
+	}
 	encodedSignedNonce := base64.URLEncoding.EncodeToString(signedNonce)
 
 	// Sends signed nonce and gets connection results (tokens, NATS seed servers, etc.)
@@ -74,7 +77,7 @@ func (p *provisioner) openSession(ctx context.Context) error {
 		Servers  []string `json:"servers"`
 	}
 
-	err = p.http.Get(ctx, fmt.Sprintf("connect?pubkey=%s&nonce=%s", pubKey, encodedSignedNonce), &connectResult)
+	err = p.http.Get(ctx, fmt.Sprintf("api/connect?pubkey=%s&nonce=%s", pubKey, encodedSignedNonce), &connectResult)
 	if err != nil {
 		return ErrAuthLogin(err)
 	}
