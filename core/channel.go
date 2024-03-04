@@ -12,7 +12,7 @@ import (
 type Channel interface {
 	Start(proxy ChannelProxy) error
 	Configure(data *ChannelInfo) error
-	Stop() error
+	Stop(destroy bool) error
 }
 
 type ChannelProvider func(channelType string) Channel
@@ -73,9 +73,10 @@ func DeserializeMappings[TMapping any](data *ChannelInfo) (map[string]*TMapping,
 }
 
 type ChannelInfo struct {
-	Settings []byte
-	Mappings map[string][]byte
-	Patterns map[string]string
+	Settings  []byte
+	Resources map[string][]byte
+	Mappings  map[string][]byte
+	Patterns  map[string]string
 }
 
 type ChannelProxy interface {
@@ -87,10 +88,12 @@ type ChannelProxy interface {
 	Publish(route string, params Parameters, data []byte) error
 	Command(op Command, params Parameters, data []byte) ([]byte, error)
 	Resource(id string) ([]byte, error)
+	Resources() map[string][]byte
 }
 
 type channelProxy struct {
 	channelConfig      *ChannelConfiguration
+	resources          map[string][]byte
 	controller         Controller
 	message            chan *DataMessage
 	command            chan *CommandMessage
@@ -103,9 +106,10 @@ type channelProxy struct {
 func newChannelProxy(controller Controller) *channelProxy {
 	return &channelProxy{
 		// channel:     channel,
+		resources:   make(map[string][]byte),
 		controller:  controller,
-		message:     make(chan *DataMessage, 0),
-		command:     make(chan *CommandMessage, 0),
+		message:     make(chan *DataMessage),
+		command:     make(chan *CommandMessage),
 		subscribers: make(map[string]*subscriber),
 		publisher:   newDataPublisher(),
 	}
@@ -170,6 +174,10 @@ func (c *channelProxy) configureSubscriptions(channelConfig *ChannelConfiguratio
 	return nil
 }
 
+func (c *channelProxy) storeResources(resources map[string][]byte) {
+	c.resources = resources
+}
+
 func (c *channelProxy) processMessage(msg *DataMessage) error {
 
 	// TODO: Handles streaming, then delegates to connector channel implementation using DataReceiver golang channel
@@ -197,9 +205,10 @@ func (c *channelProxy) Metadata() *ChannelMetadata            { return c.channel
 func (c *channelProxy) Config() *ChannelInfo {
 	if c.channelConfigCache == nil {
 		c.channelConfigCache = &ChannelInfo{
-			Settings: c.channelConfig.Settings,
-			Mappings: make(map[string][]byte),
-			Patterns: make(map[string]string),
+			Settings:  c.channelConfig.Settings,
+			Resources: c.resources,
+			Mappings:  make(map[string][]byte),
+			Patterns:  make(map[string]string),
 		}
 		for _, route := range c.channelConfig.Routes {
 			c.channelConfigCache.Mappings[route.Metadata.Id] = route.Mapping
@@ -239,7 +248,13 @@ func (c *channelProxy) Command(cmd Command, params Parameters, data []byte) ([]b
 	return nil, nil
 }
 func (c *channelProxy) Resource(id string) ([]byte, error) {
-	return nil, nil
+	if res, ok := c.resources[id]; ok {
+		return res, nil
+	}
+	return nil, errors.New("resource not found")
+}
+func (c *channelProxy) Resources() map[string][]byte {
+	return c.resources
 }
 
 // Utils

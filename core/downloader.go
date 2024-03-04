@@ -25,6 +25,7 @@ func (a *agentData) HasConfig() bool {
 }
 
 func (a *agentData) AddResource(id string, resource []byte) {
+	fmt.Printf("Resource: %s %d\n", id, len(resource))
 	a.Resources[id] = resource
 }
 
@@ -47,8 +48,14 @@ func (d *downloader) DownloadResources(info *DeployBinding) (*agentData, error) 
 	data.Config = &config
 
 	// Download resources if necessary
-	// data.AddResource("res1", resource1)
-	// data.AddResource("res2", resource2)...
+	for _, resource := range info.Resources {
+		bytes, err := d.httpClient.GetBytes(context.TODO(), fmt.Sprintf("api/resources/%s/download", resource.Id))
+		if err != nil {
+			fmt.Println("Error downloading resource: ", err)
+			return nil, err
+		}
+		data.AddResource(resource.Id, bytes)
+	}
 
 	return data, nil
 }

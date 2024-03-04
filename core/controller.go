@@ -5,6 +5,10 @@ import (
 	"fmt"
 )
 
+// type ProtoTest struct {
+// 	Data string `json:"data"`
+// }
+
 type Controller interface {
 }
 
@@ -82,18 +86,32 @@ func (c *controller) startup() error {
 
 	c.deployer.Deploy(ctx)
 
+	// TEST protocol
+	// proto := newProtocol(c.session.bee)
+	// proto.On("test", func(p *protocol, data interface{}) {
+	// 	fmt.Println("Received test signal: ", data)
+	// })
+
+	// proto.Emit("$HIVE.TEST", &ProtoTest{Data: "Hello!"}, nil)
+
+	// go func() {
+	// 	<-time.After(18 * time.Second)
+	// 	proto.AbortEmit("$HIVE.TEST")
+
+	// 	proto.Emit("$HIVE.TEST", &ProtoTest{Data: "Hello!"}, nil)
+	// }()
+
 	return nil
 }
 
 func (c *controller) shutdown() error {
-
 	if c.cancel != nil {
 		c.cancel()
 	}
 
 	for _, proxy := range c.channelProxies {
 		// c.connector.RemoveChannel(proxy.Metadata().ChannelId)
-		if err := c.stopAndRemoveChannel(proxy.Metadata().ChannelId); err != nil {
+		if err := c.stopAndRemoveChannel(proxy.Metadata().ChannelId, false); err != nil {
 			c.errors.enqueue(fmt.Errorf("shutdown: %w", err))
 		}
 	}
@@ -119,7 +137,7 @@ func (c *controller) deployTracker(ctx context.Context) {
 			if !data.HasConfig() {
 				data.Config = &BeeConfiguration{Channels: []*ChannelConfiguration{}}
 			}
-			if err := c.manageChannels(data.Config); err != nil {
+			if err := c.manageChannels(data.Config, data.Resources); err != nil {
 				// TODO: log error...
 				fmt.Println("failed to process channels: ", err)
 			}
@@ -166,7 +184,7 @@ func (c *controller) deployTracker(ctx context.Context) {
 
 // // messageHandler implementation: End
 
-func (c *controller) manageChannels(config *BeeConfiguration) error {
+func (c *controller) manageChannels(config *BeeConfiguration, resources map[string][]byte) error {
 	for _, channelConfig := range config.Channels {
 		channelId := channelConfig.Metadata.ChannelId
 
@@ -174,6 +192,7 @@ func (c *controller) manageChannels(config *BeeConfiguration) error {
 			if channel, ok := c.channels[channelId]; ok {
 
 				// Restart channel
+				proxy.storeResources(resources)
 				err := proxy.configureSubscriptions(channelConfig)
 				if err == nil {
 					err = channel.Configure(proxy.Config())
@@ -184,7 +203,7 @@ func (c *controller) manageChannels(config *BeeConfiguration) error {
 			}
 		} else {
 			// Create, add and start new channel
-			if err := c.createAndStartChannel(channelConfig); err != nil {
+			if err := c.createAndStartChannel(channelConfig, resources); err != nil {
 				c.errors.enqueue(fmt.Errorf("sync: %w", err))
 			}
 		}
@@ -199,7 +218,7 @@ func (c *controller) manageChannels(config *BeeConfiguration) error {
 			}
 		}
 		if !found {
-			if err := c.stopAndRemoveChannel(channelId); err != nil {
+			if err := c.stopAndRemoveChannel(channelId, true); err != nil {
 				c.errors.enqueue(fmt.Errorf("sync: %w", err))
 			}
 		}
@@ -207,15 +226,17 @@ func (c *controller) manageChannels(config *BeeConfiguration) error {
 	return nil
 }
 
-func (c *controller) createAndStartChannel(config *ChannelConfiguration) error {
+func (c *controller) createAndStartChannel(config *ChannelConfiguration, resources map[string][]byte) error {
 	channelId := config.Metadata.ChannelId
 	channelType := config.Metadata.ChannelType
 
 	// Create and configure a new channel proxy
 	channelProxy := newChannelProxy(c)
+	channelProxy.storeResources(resources)
 	if err := channelProxy.configureSubscriptions(config); err != nil {
 		return err
 	}
+
 	channel := c.channelProvider(channelType)
 	if channel == nil {
 		return fmt.Errorf("unknown channel type (%s) in channel ID '%s'", channelType, channelId)
@@ -234,12 +255,12 @@ func (c *controller) createAndStartChannel(config *ChannelConfiguration) error {
 	return nil
 }
 
-func (c *controller) stopAndRemoveChannel(channelId string) error {
+func (c *controller) stopAndRemoveChannel(channelId string, destroy bool) error {
 	// channelProxy.executeCommand(&CommandMessage{Cmd: Shutdown})
 	defer delete(c.channelProxies, channelId)
 	defer delete(c.channels, channelId)
 
-	return c.channels[channelId].Stop()
+	return c.channels[channelId].Stop(destroy)
 }
 
 // func (c *controller) organizeChannels(config *BeeConfiguration) error {

@@ -33,7 +33,7 @@ func (d *deployer) Startup() error {
 
 	d.publisher = newCommandPublisher()
 
-	if d.deploySubscriber, err = newCommandSubscriber(topics.Deploy(d.session.bee), d); err != nil {
+	if d.deploySubscriber, err = newCommandSubscriber(topics.DeployReceived(d.session.bee), d); err != nil {
 		return err
 	}
 	return nil

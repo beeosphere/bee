@@ -24,14 +24,14 @@ func DeployRequest() string {
 	return fmt.Sprintf(template_HIVE_COMMANDS_TOPIC, cmd_DEPLOY_REQUEST)
 }
 
-func Deployed() string {
+func DeploySuccess() string {
 	return fmt.Sprintf(template_HIVE_COMMANDS_TOPIC, cmd_DEPLOYED)
 }
 
-func DeployFailed() string {
+func DeployError() string {
 	return fmt.Sprintf(template_HIVE_COMMANDS_TOPIC, cmd_DEPLOY_FAILED)
 }
 
-func Deploy(agentId string) string {
+func DeployReceived(agentId string) string {
 	return fmt.Sprintf(template_AGENT_COMMANDS_TOPIC, agentId, cmd_DEPLOY)
 }

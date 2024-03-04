@@ -7,7 +7,8 @@ import (
 
 // BEE CONFIGURATION
 type BeeConfiguration struct {
-	Channels []*ChannelConfiguration `json:"channels"`
+	AgentType string                  `json:"agentType"` // Hive or Bee
+	Channels  []*ChannelConfiguration `json:"channels"`
 }
 type ChannelConfiguration struct {
 	Metadata *ChannelMetadata `json:"metadata"`
