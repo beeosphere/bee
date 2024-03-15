@@ -241,6 +241,7 @@ func (c *controller) createAndStartChannel(config *ChannelConfiguration, resourc
 	if channel == nil {
 		return fmt.Errorf("unknown channel type (%s) in channel ID '%s'", channelType, channelId)
 	}
+
 	if err := channel.Start(channelProxy); err != nil {
 		// TODO: Dispose created channel proxy (channelProxy.Dispose() ?)
 		fmt.Println("ERROR STARTING CHANNEL")

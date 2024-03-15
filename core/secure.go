@@ -20,7 +20,7 @@ type Watcher struct {
 }
 
 func (c *Watcher) Update(value string) {
-	println("An event occurred: ", value)
+	// println("An event occurred: ", value)
 }
 
 type Observable struct {
