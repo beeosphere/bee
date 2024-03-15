@@ -30,7 +30,7 @@ func startup() {
 	// COMMAND FLAGS
 	pflag.StringVarP(&beeId, "id", "i", "", "Bee identifier")
 	pflag.StringVarP(&beeKey, "key", "k", "", "Bee private seed key")
-	pflag.StringVarP(&hiveUri, "hive", "h", "localhost:3333", "Hive URI address")
+	pflag.StringVarP(&hiveUri, "hive", "h", "localhost:8080", "Hive URI address")
 	pflag.StringVarP(&configPath, "config", "c", "", "Config file path")
 	pflag.Parse()
 	viper.BindPFlags(pflag.CommandLine)
@@ -49,21 +49,32 @@ func startup() {
 	viper.SetConfigType("yaml")
 	// TODO: Add config path from flats/envvars
 	viper.AddConfigPath(cfgDir)
+	// if err := viper.ReadInConfig(); err != nil {
+	// 	if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+	// 		// Config file not found; ignore error if desired
+	// 		if cfgPath != "" {
+	// 			log.Errorf("Config file: %s/%s.yaml not found\n", cfgDir, cfgFilename)
+	// 			os.Exit(0)
+	// 		}
+	// 	} else {
+	// 		// Config file was found but another error was produced
+	// 		log.Error(err)
+	// 		os.Exit(0)
+	// 	}
+	// }
 	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			// Config file not found; ignore error if desired
-			if cfgPath != "" {
-				log.Errorf("Config file: %s/%s.yaml not found\n", cfgDir, cfgFilename)
-				os.Exit(0)
-			}
-		} else {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			// Config file was found but another error was produced
 			log.Error(err)
 			os.Exit(0)
 		}
 	}
+
 	if cfgPath != "" {
 		log.Infof("Using config file: %s/%s.yaml\n", cfgDir, cfgFilename)
+	} else {
+		log.Infof("A config file is not being used\n")
+
 	}
 
 	initialized = true
