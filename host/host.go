@@ -45,28 +45,31 @@ func startup() {
 		cfgFilename = strings.TrimSuffix(cfgFilename, filepath.Ext(cfgFilename))
 	}
 
-	viper.SetConfigName(cfgFilename)
-	viper.SetConfigType("yaml")
-	// TODO: Add config path from flats/envvars
-	viper.AddConfigPath(cfgDir)
-	// if err := viper.ReadInConfig(); err != nil {
-	// 	if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-	// 		// Config file not found; ignore error if desired
-	// 		if cfgPath != "" {
-	// 			log.Errorf("Config file: %s/%s.yaml not found\n", cfgDir, cfgFilename)
-	// 			os.Exit(0)
-	// 		}
-	// 	} else {
-	// 		// Config file was found but another error was produced
-	// 		log.Error(err)
-	// 		os.Exit(0)
-	// 	}
-	// }
-	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			// Config file was found but another error was produced
-			log.Error(err)
-			os.Exit(0)
+	if cfgPath != "" {
+
+		viper.SetConfigName(cfgFilename)
+		viper.SetConfigType("yaml")
+		// TODO: Add config path from flats/envvars
+		viper.AddConfigPath(cfgDir)
+		// if err := viper.ReadInConfig(); err != nil {
+		// 	if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+		// 		// Config file not found; ignore error if desired
+		// 		if cfgPath != "" {
+		// 			log.Errorf("Config file: %s/%s.yaml not found\n", cfgDir, cfgFilename)
+		// 			os.Exit(0)
+		// 		}
+		// 	} else {
+		// 		// Config file was found but another error was produced
+		// 		log.Error(err)
+		// 		os.Exit(0)
+		// 	}
+		// }
+		if err := viper.ReadInConfig(); err != nil {
+			if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+				// Config file was found but another error was produced
+				log.Error(err)
+				os.Exit(0)
+			}
 		}
 	}
 
