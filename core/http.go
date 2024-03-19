@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -13,6 +14,10 @@ import (
 	"time"
 
 	"github.com/beeosphere/bee/core/mediary"
+)
+
+var (
+	ErrNotFound = errors.New("not found")
 )
 
 type HttpClient struct {
@@ -67,6 +72,10 @@ func (c *HttpClient) Get(ctx context.Context, uri string, data interface{}) erro
 	}
 	defer res.Body.Close()
 
+	if res.StatusCode == http.StatusNotFound {
+		return ErrNotFound
+	}
+
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return err
@@ -102,6 +111,10 @@ func (c *HttpClient) GetBytes(ctx context.Context, uri string) ([]byte, error) {
 	}
 	defer res.Body.Close()
 
+	if res.StatusCode == http.StatusNotFound {
+		return nil, ErrNotFound
+	}
+
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, err
@@ -112,6 +125,51 @@ func (c *HttpClient) GetBytes(ctx context.Context, uri string) ([]byte, error) {
 	}
 	// fmt.Println(res.Status)
 	return nil, errors.New(string(body))
+}
+
+func (c *HttpClient) Post(ctx context.Context, uri string, request interface{}, response interface{}) error {
+
+	absUrl := uri
+	if !strings.HasPrefix(uri, "http://") && !strings.HasPrefix(uri, "https://") {
+		absUrl = fmt.Sprintf("%s/%s", c.baseUri, strings.TrimPrefix(uri, "/"))
+	}
+
+	data, err := json.Marshal(request)
+	if err != nil {
+		return err
+	}
+	bfm := bytes.NewBuffer(data)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, absUrl, bfm)
+	if err != nil {
+		return err
+	}
+	// req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.session.apiToken.Get()))
+	res, err := c.http.Do(req)
+	if err != nil {
+		return err.(*url.Error).Err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode == http.StatusNotFound {
+		return ErrNotFound
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return err
+	}
+
+	if res.StatusCode >= 200 && res.StatusCode <= 299 {
+		if response != nil {
+			if err = json.Unmarshal(body, response); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	// fmt.Println(res.Status)
+	return errors.New(string(body))
 }
 
 // var baseUri string

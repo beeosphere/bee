@@ -89,12 +89,13 @@ type ChannelProxy interface {
 	Command(op Command, params Parameters, data []byte) ([]byte, error)
 	Resource(id string) ([]byte, error)
 	Resources() map[string][]byte
+	SharedMemory() SharedMemory
 }
 
 type channelProxy struct {
 	channelConfig      *ChannelConfiguration
 	resources          map[string][]byte
-	controller         Controller
+	controller         *controller
 	message            chan *DataMessage
 	command            chan *CommandMessage
 	subscribers        map[string]*subscriber
@@ -103,7 +104,7 @@ type channelProxy struct {
 	templates          map[string]*template.Template
 }
 
-func newChannelProxy(controller Controller) *channelProxy {
+func newChannelProxy(controller *controller) *channelProxy {
 	return &channelProxy{
 		// channel:     channel,
 		resources:   make(map[string][]byte),
@@ -255,6 +256,9 @@ func (c *channelProxy) Resource(id string) ([]byte, error) {
 }
 func (c *channelProxy) Resources() map[string][]byte {
 	return c.resources
+}
+func (c *channelProxy) SharedMemory() SharedMemory {
+	return c.controller.resources
 }
 
 // Utils

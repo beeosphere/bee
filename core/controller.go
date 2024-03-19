@@ -24,6 +24,7 @@ type controller struct {
 	synchronizer    *synchronizer
 	deployer        *deployer
 	cancel          context.CancelFunc
+	resources       *resourceManager
 }
 
 func newController(session *session, httpClient *HttpClient, channelProvider ChannelProvider) *controller {
@@ -37,6 +38,7 @@ func newController(session *session, httpClient *HttpClient, channelProvider Cha
 		commands:        make(map[string]func()),
 		synchronizer:    newSynchronizer(session, httpClient),
 		deployer:        newDeployer(session, httpClient),
+		resources:       newResourceManager(session.bee, httpClient),
 	}
 }
 
@@ -50,12 +52,14 @@ func (en *errorTracker) flush() {
 
 func (c *controller) startup() error {
 
-	busClient = newBus(c.session)
+	// busClient = newBus(c.session)
 
 	err := busClient.Connect()
 	if err != nil {
 		return err
 	}
+
+	c.resources.Run()
 
 	// c.synchronizer.Startup()
 	c.deployer.Startup()
@@ -108,6 +112,8 @@ func (c *controller) shutdown() error {
 	if c.cancel != nil {
 		c.cancel()
 	}
+
+	c.resources.Stop()
 
 	for _, proxy := range c.channelProxies {
 		// c.connector.RemoveChannel(proxy.Metadata().ChannelId)

@@ -27,6 +27,8 @@ func NewBee(options *BeeOptions, provider ChannelProvider) *BeeEngine {
 	session := newSession(options.Id, options.Key, options.HiveUri)
 	http := NewHttpClient(options, session)
 
+	busClient = newBus(session)
+
 	return &BeeEngine{
 		session:     session,
 		provisioner: newProvisioner(session, http),

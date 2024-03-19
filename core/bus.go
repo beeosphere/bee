@@ -89,7 +89,7 @@ func (b *bus) Connect() error {
 	// return err
 }
 
-func (_ *bus) SignNonce(seed, nonce []byte) ([]byte, error) {
+func (*bus) SignNonce(seed, nonce []byte) ([]byte, error) {
 
 	kp, err := nkeys.FromSeed(seed)
 	if err != nil {

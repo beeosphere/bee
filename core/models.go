@@ -74,3 +74,31 @@ type DeployFailed struct {
 	Timestamp time.Time `json:"timestamp"`
 	Error     string    `json:"error"`
 }
+
+// SHARED MEMORY
+type MemoryValue struct {
+	Key       string    `json:"key"`
+	Value     string    `json:"value"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+// func newMemoryValue(key, value string) *MemoryValue {
+// 	return &MemoryValue{
+// 		Key:       key,
+// 		Value:     value,
+// 		Timestamp: time.Now(),
+// 	}
+// }
+
+type Variables map[string]string
+
+// NECTAR MESSGES
+type NectarVariable struct {
+	Path  string      `json:"path"`
+	Value interface{} `json:"value"`
+	Type  string      `json:"type"`
+}
+type NectarMessage struct {
+	Timestamp int64             `json:"ts"`
+	Variables []*NectarVariable `json:"variables"`
+}

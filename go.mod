@@ -3,6 +3,7 @@ module github.com/beeosphere/bee
 go 1.19
 
 require (
+	github.com/extism/go-sdk v1.1.0
 	github.com/nats-io/nats.go v1.13.0
 	github.com/nats-io/nkeys v0.3.0
 	github.com/sirupsen/logrus v1.8.1
@@ -12,7 +13,6 @@ require (
 )
 
 require (
-	github.com/extism/go-sdk v1.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect

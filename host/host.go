@@ -77,7 +77,6 @@ func startup() {
 		log.Infof("Using config file: %s/%s.yaml\n", cfgDir, cfgFilename)
 	} else {
 		log.Infof("A config file is not being used\n")
-
 	}
 
 	initialized = true

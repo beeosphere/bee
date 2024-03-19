@@ -21,14 +21,12 @@ func ProtoMap[T any](message ProtoMessage) *T {
 }
 
 type Protocol struct {
-	conn          *nats.Conn
 	subscriptions []*nats.Subscription
 	cancels       map[string]context.CancelFunc
 }
 
 func NewProtocol() *Protocol {
 	return &Protocol{
-		conn:    busClient.conn,
 		cancels: make(map[string]context.CancelFunc),
 	}
 }
@@ -93,11 +91,11 @@ func (p *Protocol) Send(signal string, data interface{}) error {
 		}
 	}
 	// fmt.Println("sending data")
-	return p.conn.Publish(signal, bytes)
+	return conn().Publish(signal, bytes)
 }
 
 func (p *Protocol) On(signal string, handler func(protocol *Protocol, message ProtoMessage)) error {
-	subs, err := p.conn.Subscribe(signal, func(msg *nats.Msg) {
+	subs, err := conn().Subscribe(signal, func(msg *nats.Msg) {
 		handler(p, ProtoMessage(msg.Data))
 	})
 	if err != nil {
@@ -131,4 +129,8 @@ func (p *Protocol) Dispose() error {
 		}
 	}
 	return nil
+}
+
+func conn() *nats.Conn {
+	return busClient.conn
 }
