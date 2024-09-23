@@ -117,7 +117,7 @@ func (c *controller) shutdown() error {
 
 	for _, proxy := range c.channelProxies {
 		// c.connector.RemoveChannel(proxy.Metadata().ChannelId)
-		if err := c.stopAndRemoveChannel(proxy.Metadata().ChannelId, false); err != nil {
+		if err := c.stopAndRemoveChannel(proxy.Metadata().ChannelId, true); err != nil {
 			c.errors.enqueue(fmt.Errorf("shutdown: %w", err))
 		}
 	}
@@ -224,7 +224,7 @@ func (c *controller) manageChannels(config *BeeConfiguration, resources map[stri
 			}
 		}
 		if !found {
-			if err := c.stopAndRemoveChannel(channelId, true); err != nil {
+			if err := c.stopAndRemoveChannel(channelId, false); err != nil {
 				c.errors.enqueue(fmt.Errorf("sync: %w", err))
 			}
 		}

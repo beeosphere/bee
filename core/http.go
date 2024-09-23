@@ -26,6 +26,18 @@ type HttpClient struct {
 	session *session
 }
 
+func authorizationInterceptor(session *session) mediary.Interceptor {
+	return func(req *http.Request, handler mediary.Handler) (*http.Response, error) {
+
+		if session.ApiToken() != "" {
+			req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", session.ApiToken()))
+		}
+		// fmt.Println("INTERCEPTOR...")
+
+		return handler(req)
+	}
+}
+
 func NewHttpClient(options *BeeOptions, session *session) *HttpClient {
 
 	client := &http.Client{
@@ -38,13 +50,12 @@ func NewHttpClient(options *BeeOptions, session *session) *HttpClient {
 
 	clientWithInterceptor := mediary.Init().
 		WithPreconfiguredClient(client).
-		AddInterceptors(func(req *http.Request, handler mediary.Handler) (*http.Response, error) {
-			// req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", session.apiToken.Get()))
-
-			// fmt.Println("INTERCEPTOR...")
-
-			return handler(req)
-		}).
+		AddInterceptors(authorizationInterceptor(session)).
+		// AddInterceptors(func(req *http.Request, handler mediary.Handler) (*http.Response, error) {
+		// 	// req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", session.apiToken.Get()))
+		// 	// fmt.Println("INTERCEPTOR...")
+		// 	return handler(req)
+		// }).
 		Build()
 
 	return &HttpClient{
