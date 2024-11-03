@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
-
-	"github.com/beeosphere/bee/core/topics"
 )
 
 type deployer struct {
@@ -33,7 +31,7 @@ func (d *deployer) Startup() error {
 
 	d.publisher = newCommandPublisher()
 
-	if d.deploySubscriber, err = newCommandSubscriber(topics.DeployReceived(d.session.bee), d); err != nil {
+	if d.deploySubscriber, err = newCommandSubscriber(d.session.bee, "DEPLOY", d); err != nil {
 		return err
 	}
 	return nil
@@ -90,7 +88,7 @@ func (d *deployer) deployRequest(ctx context.Context) {
 	var err error
 
 	// Publishes a deploy request
-	d.publisher.Publish(topics.DeployRequest(), &DeployRequest{AgentId: d.session.bee, Timestamp: time.Now()})
+	d.publisher.Publish(cmd_DEPLOY_REQ, &DeployRequest{AgentId: d.session.bee, Timestamp: time.Now()})
 
 	// var metadata *DeployBinding
 	for agentData == nil {
@@ -112,7 +110,7 @@ func (d *deployer) deployRequest(ctx context.Context) {
 
 		case <-ticker.C:
 			// Publishes a deploy request again
-			d.publisher.Publish(topics.DeployRequest(), &DeployRequest{AgentId: d.session.bee, Timestamp: time.Now()})
+			d.publisher.Publish(cmd_DEPLOY_REQ, &DeployRequest{AgentId: d.session.bee, Timestamp: time.Now()})
 
 		case <-ctx.Done():
 			return
@@ -127,6 +125,11 @@ func (d *deployer) downloadResources(metadata *DeployBinding) (data *agentData, 
 		// To allow this, the deployer should have access to the agent's config...
 
 		data, err = d.downloader.DownloadResources(metadata)
+		if err == nil {
+
+			data.ConfigId = metadata.ConfigId
+			data.ConfigHash = metadata.ConfigHash
+		}
 		return
 	}
 	data = &agentData{} // Empty agent data

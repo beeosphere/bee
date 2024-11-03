@@ -42,3 +42,10 @@ func (v Variables) getKeys(prefix string) []string {
 	}
 	return keys
 }
+
+func shortValue(value string) string {
+	if len(value) > 8 {
+		return ".." + value[len(value)-8:]
+	}
+	return value
+}

@@ -3,6 +3,8 @@ package core
 import (
 	"context"
 	"fmt"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // type ProtoTest struct {
@@ -13,6 +15,7 @@ type Controller interface {
 }
 
 type controller struct {
+	logger          Logger
 	session         *session
 	errors          *errorTracker
 	channelProvider ChannelProvider
@@ -21,14 +24,15 @@ type controller struct {
 	subscribers     map[string]*subscriber
 	publisher       *publisher
 	commands        map[string]func()
-	synchronizer    *synchronizer
 	deployer        *deployer
 	cancel          context.CancelFunc
 	resources       *resourceManager
+	// synchronizer    *synchronizer
 }
 
 func newController(session *session, httpClient *HttpClient, channelProvider ChannelProvider) *controller {
 	return &controller{
+		logger:          newLogrusLogger(),
 		session:         session,
 		errors:          &errorTracker{},
 		channels:        make(map[string]Channel),
@@ -36,9 +40,9 @@ func newController(session *session, httpClient *HttpClient, channelProvider Cha
 		channelProxies:  make(map[string]*channelProxy),
 		subscribers:     make(map[string]*subscriber),
 		commands:        make(map[string]func()),
-		synchronizer:    newSynchronizer(session, httpClient),
 		deployer:        newDeployer(session, httpClient),
 		resources:       newResourceManager(session.bee, httpClient),
+		// synchronizer:    newSynchronizer(session, httpClient),
 	}
 }
 
@@ -143,9 +147,9 @@ func (c *controller) deployTracker(ctx context.Context) {
 			if !data.HasConfig() {
 				data.Config = &BeeConfiguration{Channels: []*ChannelConfiguration{}}
 			}
-			if err := c.manageChannels(data.Config, data.Resources); err != nil {
+			if err := c.manageChannels(data.ConfigId, data.ConfigHash, data.Config, data.Resources); err != nil {
 				// TODO: log error...
-				fmt.Println("failed to process channels: ", err)
+				log.Warnf("failed to process channels: %s", err)
 			}
 			// fmt.Println("-- DEPLOY TRACKER DATA: ", data.Config)
 
@@ -190,7 +194,7 @@ func (c *controller) deployTracker(ctx context.Context) {
 
 // // messageHandler implementation: End
 
-func (c *controller) manageChannels(config *BeeConfiguration, resources map[string][]byte) error {
+func (c *controller) manageChannels(configId string, configHash string, config *BeeConfiguration, resources map[string][]byte) error {
 	for _, channelConfig := range config.Channels {
 		channelId := channelConfig.Metadata.ChannelId
 
@@ -205,11 +209,13 @@ func (c *controller) manageChannels(config *BeeConfiguration, resources map[stri
 				}
 				if err != nil {
 					c.errors.enqueue(fmt.Errorf("sync: %w", err))
+				} else {
+					log.Infof("Reconfigured (channel: %s, config: %s, hash: %s)", channelId, configId, shortValue(configHash))
 				}
 			}
 		} else {
 			// Create, add and start new channel
-			if err := c.createAndStartChannel(channelConfig, resources); err != nil {
+			if err := c.createAndStartChannel(configId, configHash, channelConfig, resources); err != nil {
 				c.errors.enqueue(fmt.Errorf("sync: %w", err))
 			}
 		}
@@ -232,7 +238,7 @@ func (c *controller) manageChannels(config *BeeConfiguration, resources map[stri
 	return nil
 }
 
-func (c *controller) createAndStartChannel(config *ChannelConfiguration, resources map[string][]byte) error {
+func (c *controller) createAndStartChannel(configId string, configHash string, config *ChannelConfiguration, resources map[string][]byte) error {
 	channelId := config.Metadata.ChannelId
 	channelType := config.Metadata.ChannelType
 
@@ -243,7 +249,7 @@ func (c *controller) createAndStartChannel(config *ChannelConfiguration, resourc
 		return err
 	}
 
-	channel := c.channelProvider(channelType)
+	channel := c.channelProvider(channelType, c.logger)
 	if channel == nil {
 		return fmt.Errorf("unknown channel type (%s) in channel ID '%s'", channelType, channelId)
 	}
@@ -253,9 +259,11 @@ func (c *controller) createAndStartChannel(config *ChannelConfiguration, resourc
 		fmt.Println("ERROR STARTING CHANNEL")
 		return err
 	}
+	log.Infof("Started (channel: %s)", channelId)
 	if err := channel.Configure(channelProxy.Config()); err != nil {
 		return err
 	}
+	log.Infof("Configured (channel: %s, config: %s, hash: %s)", channelId, configId, shortValue(configHash))
 
 	c.channels[channelId] = channel
 	c.channelProxies[channelId] = channelProxy
@@ -267,7 +275,13 @@ func (c *controller) stopAndRemoveChannel(channelId string, destroy bool) error 
 	defer delete(c.channelProxies, channelId)
 	defer delete(c.channels, channelId)
 
-	return c.channels[channelId].Stop(destroy)
+	err := c.channels[channelId].Stop(destroy)
+	if destroy {
+		log.Infof("Stopped and disposed (channel: %s)", channelId)
+	} else {
+		log.Infof("Stopped (channel: %s)", channelId)
+	}
+	return err
 }
 
 // func (c *controller) organizeChannels(config *BeeConfiguration) error {

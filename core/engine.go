@@ -2,16 +2,19 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
 
 type BeeOptions struct {
-	Id      string
-	Key     string
-	HiveUri string
+	Id       string
+	Key      string
+	HiveUri  string
+	LogLevel string
 }
 
 type BeeEngine struct {
@@ -24,8 +27,22 @@ var busClient *bus
 
 func NewBee(options *BeeOptions, provider ChannelProvider) *BeeEngine {
 
-	session := newSession(options.Id, options.Key, options.HiveUri)
-	http := NewHttpClient(options, session)
+	if !validateOptions(options) {
+		os.Exit(1)
+	}
+
+	log.SetLevel(convertLogLevel(options.LogLevel))
+
+	log.Infof("BEE ID:      %s", options.Id)
+	log.Infof("HIVE HOST:   %s", options.HiveUri)
+	log.Infof("LOG LEVEL:   %s", options.LogLevel)
+	log.Info("")
+	log.Info("           oO              ")
+	log.Info(" Zzzz..  -{||\")   Bee agent is flying!")
+	log.Info("")
+
+	session := newSession(options.Id, options.Key, formattedHiveUri(options.HiveUri))
+	http := NewHttpClient(session)
 
 	busClient = newBus(session)
 
@@ -38,8 +55,6 @@ func NewBee(options *BeeOptions, provider ChannelProvider) *BeeEngine {
 
 func (e *BeeEngine) Buzz() error {
 
-	log.SetLevel(log.DebugLevel) // TODO: Set by options
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
@@ -49,6 +64,8 @@ func (e *BeeEngine) Buzz() error {
 		return err
 	}
 	<-ctx.Done()
+
+	fmt.Println("")
 
 	err = e.disconnect()
 	if err != nil {
@@ -78,3 +95,72 @@ func (e *BeeEngine) disconnect() error {
 
 	return e.controller.shutdown()
 }
+
+func validateOptions(options *BeeOptions) bool {
+	messages := []string{}
+	// Validate required parameters
+	if options.Id == "" {
+		messages = append(messages, "Bee ID")
+	}
+	if options.Key == "" {
+		messages = append(messages, "Private key")
+	}
+	if options.HiveUri == "" {
+		messages = append(messages, "Hive address")
+	}
+	if len(messages) > 0 {
+		log.Error(fmt.Sprintf("Missing required params: %s", strings.Join(messages, ", ")))
+		return false
+	}
+	return true
+}
+
+func convertLogLevel(level string) log.Level {
+	switch level {
+	case "trace":
+		return log.TraceLevel
+	case "debug":
+		return log.DebugLevel
+	case "info":
+		return log.InfoLevel
+	case "warn":
+		return log.WarnLevel
+	case "error":
+		return log.ErrorLevel
+	default:
+		return log.InfoLevel
+	}
+}
+
+func formattedHiveUri(hive string) string {
+	if strings.HasPrefix(hive, "http") {
+		return hive
+	}
+	return fmt.Sprintf("http://%s", hive) // TODO: http or https...
+}
+
+// log.Info("                           ")
+// log.Info("      ████  ████           ")
+// log.Info("    ██    ██    ██         ")
+// log.Info("      ██    ██  ██         ")
+// log.Info("        ██████████         ")
+// log.Info("      ████░░██░░░░██       ")
+// log.Info("    ██░░██░░██░░░░░░▓▓     ")
+// log.Info("▓▓▓▓██░░██░░██░░▓▓░░██     ")
+// log.Info("    ██░░██░░██░░░░░░██     ")
+// log.Info("      ████░░██░░░░██       ")
+// log.Info("        ██████████         ")
+// log.Info("                           ")
+
+// log.Info("                      oO //      ")
+// log.Info(" bzzz''-.._.-''-.._ -(||)(')     ")
+// log.Info("                     '''         ")
+
+// log.Info("   oO //     ")
+// log.Info("-(||)(')     ")
+// log.Info(" '''         ")
+
+// log.Info("")
+// log.Info(fmt.Sprintf("  oO     Bee: %s", options.Id))
+// log.Info(fmt.Sprintf("-{||')   Hive: %s", options.HiveUri))
+// log.Info("")

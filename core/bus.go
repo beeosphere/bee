@@ -44,7 +44,8 @@ func (b *bus) Connect() error {
 		nats.Name(b.session.bee),
 		nats.UserJWT(userJWTHandler, signatureHandler),
 		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
-			log.Warnf("Disconnected. Reason: %q\n", err)
+			// log.Warnf("Disconnected. Reason: %q\n", err)
+			log.Warn("Connection lost")
 		}),
 		nats.ReconnectHandler(func(nc *nats.Conn) {
 			log.Infof("Reconnected to %v\n", nc.ConnectedUrl())
@@ -59,7 +60,7 @@ func (b *bus) Connect() error {
 	}
 
 	s := b.session
-	log.Infof("Connected to Hive: %s. Hub:%s. Bee:%s. PubKey:%s\n", urls, s.hub, s.bee, s.publicKey)
+	log.Infof("Connected to hive: %s (hub: %s) as %s (pubKey: %s)\n", urls, s.hub, s.bee, shortValue(s.publicKey))
 
 	// msg := &nats.Msg{Subject: fmt.Sprintf("$BEEOS.HUB.%s.BEE.%s.SYNC_REQ", b.session.hub, b.session.bee), Data: []byte("Message from bee")}
 	// res, err := con.RequestMsg(msg, 5*time.Second)

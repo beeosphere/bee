@@ -15,7 +15,7 @@ type Channel interface {
 	Stop(destroy bool) error
 }
 
-type ChannelProvider func(channelType string) Channel
+type ChannelProvider func(channelType string, logger Logger) Channel
 
 type Parameters map[string]string
 

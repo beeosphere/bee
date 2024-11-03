@@ -10,8 +10,10 @@ type downloader struct {
 }
 
 type agentData struct {
-	Config    *BeeConfiguration
-	Resources map[string][]byte
+	ConfigId   string
+	ConfigHash string
+	Config     *BeeConfiguration
+	Resources  map[string][]byte
 }
 
 func newAgentData() *agentData {

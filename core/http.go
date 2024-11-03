@@ -38,7 +38,7 @@ func authorizationInterceptor(session *session) mediary.Interceptor {
 	}
 }
 
-func NewHttpClient(options *BeeOptions, session *session) *HttpClient {
+func NewHttpClient(session *session) *HttpClient {
 
 	client := &http.Client{
 		Timeout: time.Second * 10,
@@ -59,7 +59,7 @@ func NewHttpClient(options *BeeOptions, session *session) *HttpClient {
 		Build()
 
 	return &HttpClient{
-		baseUri: options.HiveUri,
+		baseUri: session.hiveAddress,
 		http:    clientWithInterceptor,
 		session: session,
 	}

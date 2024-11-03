@@ -2,10 +2,17 @@ package core
 
 import (
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/nats-io/nats.go"
 	log "github.com/sirupsen/logrus"
+)
+
+const (
+	sendCommandPrefix = "$HIVE"
+	sendMessagePrefix = "$BEE"
+	sendCommandIndex  = 1
 )
 
 type publisher struct {
@@ -15,14 +22,14 @@ type publisher struct {
 
 func newCommandPublisher() *publisher {
 	return &publisher{
-		prefix: beeosCommandPrefix,
+		prefix: sendCommandPrefix,
 		conn:   busClient.conn,
 	}
 }
 
 func newDataPublisher() *publisher {
 	return &publisher{
-		prefix: beeosDataPrefix,
+		prefix: sendMessagePrefix,
 		conn:   busClient.conn,
 	}
 }
@@ -36,16 +43,23 @@ func (p *publisher) Publish(topic string, data interface{}) error {
 			return err
 		}
 	}
-	if p.prefix == beeosDataPrefix {
-		topic = beeosDataPrefixWithDot + topic
+	var subject string
+	if p.prefix == sendMessagePrefix {
+		subject = sendMessagePrefix + "." + topic
+		log.Tracef("Message <- bee: %s (%d bytes)", topic, len(bytes))
+
+	} else if p.prefix == sendCommandPrefix {
+		subject = topicCommandToHive + "." + topic
+		cmd := topic
+		log.Tracef("Command <- bee: %s", cmd)
+
+	} else {
+		return errors.New("Invalid prefix")
 	}
-
-	log.Debugf("Publish to '%s'\n", topic)
-
-	return p.conn.Publish(topic, bytes)
+	return p.conn.Publish(subject, bytes)
 }
 
-func (p *publisher) Request(topic string, request interface{}, response interface{}) error {
+func (p *publisher) Request(topic string, request interface{}, response interface{}) error { // TODO Adapt Request to work as Publish does
 	var err error
 	reqBytes, ok := request.([]byte)
 	if !ok {
@@ -83,3 +97,12 @@ func (p *publisher) Request(topic string, request interface{}, response interfac
 	// }
 	// return nil
 }
+
+// func getSendCommand(topic string) Command {
+// 	// Command format: $HIVE.[cmd]
+// 	parts := strings.Split(topic, ".")
+// 	if parts[0] == sendCommandPrefix && len(parts) >= sendCommandIndex+1 {
+// 		return Command(parts[sendCommandIndex])
+// 	}
+// 	return ""
+// }
