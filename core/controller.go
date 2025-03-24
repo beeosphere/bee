@@ -3,36 +3,48 @@ package core
 import (
 	"context"
 	"fmt"
-
-	log "github.com/sirupsen/logrus"
+	// log "github.com/sirupsen/logrus"
 )
 
 // type ProtoTest struct {
 // 	Data string `json:"data"`
 // }
 
+// var log Logger
+
 type Controller interface {
+	Startup() error
+	Shutdown() error
+	Started() <-chan bool
 }
 
 type controller struct {
-	logger          Logger
+	// logger          Logger
 	session         *session
 	errors          *errorTracker
 	channelProvider ChannelProvider
 	channels        map[string]Channel
 	channelProxies  map[string]*channelProxy
 	subscribers     map[string]*subscriber
-	publisher       *publisher
+	publisher       Publisher
 	commands        map[string]func()
-	deployer        *deployer
+	deployer        Deployer
 	cancel          context.CancelFunc
 	resources       *resourceManager
 	// synchronizer    *synchronizer
+	started chan bool
 }
 
 func newController(session *session, httpClient *HttpClient, channelProvider ChannelProvider) *controller {
-	return &controller{
-		logger:          newLogrusLogger(),
+
+	var deployer Deployer
+	if session.IsEmbedded() {
+		deployer = newLocalDeployer(session)
+	} else {
+		deployer = newRemoteDeployer(session, httpClient)
+	}
+
+	ctrl := &controller{
 		session:         session,
 		errors:          &errorTracker{},
 		channels:        make(map[string]Channel),
@@ -40,10 +52,16 @@ func newController(session *session, httpClient *HttpClient, channelProvider Cha
 		channelProxies:  make(map[string]*channelProxy),
 		subscribers:     make(map[string]*subscriber),
 		commands:        make(map[string]func()),
-		deployer:        newDeployer(session, httpClient),
+		deployer:        deployer,
 		resources:       newResourceManager(session.bee, httpClient),
 		// synchronizer:    newSynchronizer(session, httpClient),
+		started: make(chan bool),
 	}
+	// logger := newLogrusLogger()
+	// logger.SetPrefix(session.bee, "")
+	// log = logger
+	// ctrl.logger = logger
+	return ctrl
 }
 
 type errorTracker struct {
@@ -54,14 +72,21 @@ func (en *errorTracker) enqueue(err error) {
 func (en *errorTracker) flush() {
 }
 
-func (c *controller) startup() error {
+func (c *controller) Started() <-chan bool {
+	return c.started
+}
+
+func (c *controller) Startup() error {
 
 	// busClient = newBus(c.session)
 
-	err := busClient.Connect()
-	if err != nil {
-		return err
+	if !c.session.IsEmbedded() {
+		err := busClient.Connect()
+		if err != nil {
+			return err
+		}
 	}
+	// log.Info("Starting up...")
 
 	c.resources.Run()
 
@@ -112,7 +137,8 @@ func (c *controller) startup() error {
 	return nil
 }
 
-func (c *controller) shutdown() error {
+func (c *controller) Shutdown() error {
+	// log.Info("Shutting down...")
 	if c.cancel != nil {
 		c.cancel()
 	}
@@ -140,9 +166,10 @@ func (c *controller) shutdown() error {
 }
 
 func (c *controller) deployTracker(ctx context.Context) {
+	configDeployed := c.deployer.Deployed()
 	for {
 		select {
-		case data := <-c.deployer.ConfigDeployed:
+		case data := <-configDeployed:
 
 			if !data.HasConfig() {
 				data.Config = &BeeConfiguration{Channels: []*ChannelConfiguration{}}
@@ -249,9 +276,11 @@ func (c *controller) createAndStartChannel(configId string, configHash string, c
 		return err
 	}
 
-	channel := c.channelProvider(channelType, c.logger)
+	logger := newLogrusLogger()
+	logger.SetPrefix(c.session.bee, channelId)
+	channel := c.channelProvider(channelType, logger)
 	if channel == nil {
-		return fmt.Errorf("unknown channel type (%s) in channel ID '%s'", channelType, channelId)
+		return fmt.Errorf("unknown channel type (%s) in channel ID '%s' (bee: %s)", channelType, channelId, c.session.bee)
 	}
 
 	if err := channel.Start(channelProxy); err != nil {
@@ -259,14 +288,18 @@ func (c *controller) createAndStartChannel(configId string, configHash string, c
 		fmt.Println("ERROR STARTING CHANNEL")
 		return err
 	}
-	log.Infof("Started (channel: %s)", channelId)
+	log.Infof("Started (bee: %s, channel: %s)", c.session.bee, channelId)
 	if err := channel.Configure(channelProxy.Config()); err != nil {
 		return err
 	}
-	log.Infof("Configured (channel: %s, config: %s, hash: %s)", channelId, configId, shortValue(configHash))
+	log.Infof("Configured (bee: %s, channel: %s, config: %s, hash: %s)", c.session.bee, channelId, configId, shortValue(configHash))
 
 	c.channels[channelId] = channel
 	c.channelProxies[channelId] = channelProxy
+
+	// TODO: We need to send a bool to a global channel when all the channels are started
+	// c.started <- true
+
 	return nil
 }
 
@@ -277,9 +310,9 @@ func (c *controller) stopAndRemoveChannel(channelId string, destroy bool) error 
 
 	err := c.channels[channelId].Stop(destroy)
 	if destroy {
-		log.Infof("Stopped and disposed (channel: %s)", channelId)
+		log.Infof("Stopped and disposed (bee: %s, channel: %s)", c.session.bee, channelId)
 	} else {
-		log.Infof("Stopped (channel: %s)", channelId)
+		log.Infof("Stopped (bee: %s, channel: %s)", c.session.bee, channelId)
 	}
 	return err
 }

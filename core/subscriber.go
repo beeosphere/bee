@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/nats-io/nats.go"
-	log "github.com/sirupsen/logrus"
+	// log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -17,6 +17,13 @@ const (
 	topicCommandToBee  = "$AGENT.ID"
 	topicMessage       = "$BEE"
 )
+
+type Subscriber interface {
+	Route() string
+	Topic() string
+	Subscribe() error
+	Unsubscribe() error
+}
 
 type subscriber struct {
 	prefix       string
@@ -42,27 +49,27 @@ type messageHandler interface {
 //		err := subscriber.subscribe()
 //		return subscriber, err
 //	}
-func newCommandSubscriber(beeId, command string, h messageHandler) (*subscriber, error) {
-	subscriber := &subscriber{
+func newCommandSubscriber(beeId, command string, h messageHandler) Subscriber {
+	return &subscriber{
 		prefix:  recvCommandPrefix,
 		topic:   fmt.Sprintf("%s.%s", beeId, command),
 		conn:    busClient.conn,
 		handler: h,
 	}
-	err := subscriber.subscribe()
-	return subscriber, err
 }
 
-func newDataSubscriber(topic, route string, h messageHandler) (*subscriber, error) {
-	subscriber := &subscriber{
+func newDataSubscriber(topic, route string, h messageHandler) Subscriber {
+	return &subscriber{
 		prefix:  recvMessagePrefix,
 		route:   route,
 		topic:   topic,
 		conn:    busClient.conn,
 		handler: h,
 	}
-	err := subscriber.subscribe()
-	return subscriber, err
+}
+
+func (s *subscriber) Route() string {
+	return s.route
 }
 
 func (s *subscriber) Topic() string {
@@ -78,7 +85,7 @@ func (s *subscriber) Unsubscribe() error {
 	return nil
 }
 
-func (s *subscriber) subscribe() error { // TODO: Determine queue group subscriptions... take into account...
+func (s *subscriber) Subscribe() error { // TODO: Determine queue group subscriptions... take into account...
 	var subject string
 	topic := s.topic
 
@@ -107,15 +114,20 @@ func (s *subscriber) subscribe() error { // TODO: Determine queue group subscrip
 			s.handler.executeCommand(cmd)
 		} else {
 			// Data message
-			msgTopic := strings.TrimPrefix(msg.Sub.Subject, recvMessagePrefix+".")
-			log.Tracef("Message -> bee: %s (%d bytes) Subscribed as: %s", msgTopic, len(msg.Data), topic)
+			// msgTopic := strings.TrimPrefix(msg.Sub.Subject, recvMessagePrefix+".")
+			// log.Tracef("Message -> bee: %s (%d bytes) Subscribed as: %s", msgTopic, len(msg.Data), topic)
 
 			message := &DataMessage{
-				Topic: msgTopic,
+				subTopic: topic,
+				pubTopic: msg.Sub.Subject,
+				prefix:   recvMessagePrefix,
+				// Topic: msgTopic,
 				Data:  msg.Data,
 				Route: s.route,
 				// Pattern: "", // Attach info in handler (channel/controller)
 			}
+			log.Tracef("Message -> bee: %s (%d bytes) Subscribed as: %s", message.Topic(), len(msg.Data), topic)
+
 			s.handler.processMessage(message)
 		}
 	})

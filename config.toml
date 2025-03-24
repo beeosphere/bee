@@ -1,0 +1,33 @@
+[agent]
+id = "bee0"
+key = "SUACEN57PJE3EQWYLQIY2SAYFU7O72VLFL3PQQIYJEZMW3VPT3FSB6GQLM"
+hive = "kraaisoft.local:8080"
+log = "debug"
+
+# Example of multiple agents in standalone mode using local configuration files
+
+[agents.opcua]
+id = "bee1"
+log = "debug"
+config.path = "/path/to/config1.json"
+config.watch = true # Watch for changes in the configuration file
+
+[agents.s7]
+id = "bee2"
+log = "debug"
+config.path = "/path/to/config2.json"
+config.watch = false
+
+# Example of multiple agents connecting to the same hive
+
+[agents.opcua-2]
+id = "bee3"
+key = "SUACEN57PJE3EQWYLQIY2SAYFU7O72VLFL3PQQIYJEZMW3VPT3FSB6GQLM"
+hive = "kraaisoft.local:8080"
+log = "debug"
+
+[agents.s7-2]
+id = "bee4"
+key = "SUACEN57PJE3EQWYLQIY2SAYFU7O72VLFL3PQQIYJEZMW3VPT3FSB6GQLM"
+hive = "kraaisoft.local:8080"
+log = "debug"

@@ -6,28 +6,26 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
-	log "github.com/sirupsen/logrus"
+	// log "github.com/sirupsen/logrus"
 )
 
-const (
-	sendCommandPrefix = "$HIVE"
-	sendMessagePrefix = "$BEE"
-	sendCommandIndex  = 1
-)
+type Publisher interface {
+	Publish(topic string, data interface{}) error
+}
 
 type publisher struct {
 	prefix string
 	conn   *nats.Conn
 }
 
-func newCommandPublisher() *publisher {
+func newCommandPublisher() Publisher {
 	return &publisher{
 		prefix: sendCommandPrefix,
 		conn:   busClient.conn,
 	}
 }
 
-func newDataPublisher() *publisher {
+func newDataPublisher() Publisher {
 	return &publisher{
 		prefix: sendMessagePrefix,
 		conn:   busClient.conn,

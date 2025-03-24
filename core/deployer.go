@@ -2,46 +2,58 @@ package core
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
+	// log "github.com/sirupsen/logrus"
 )
 
-type deployer struct {
+type Deployer interface {
+	Startup() error
+	Deploy(ctx context.Context)
+	Deployed() <-chan *AgentData
+}
+
+// REMOTE DEPLOYER
+
+type remoteDeployer struct {
 	session *session
 	// httpClient       *HttpClient
-	downloader       *downloader
-	publisher        *publisher
-	deploySubscriber *subscriber
+	downloader       Downloader
+	publisher        Publisher
+	deploySubscriber Subscriber
 	deployMetadata   chan *DeployBinding
-	ConfigDeployed   chan *agentData
+	configDeployed   chan *AgentData
 }
 
-func newDeployer(session *session, httpClient *HttpClient) *deployer {
-	return &deployer{
+func newRemoteDeployer(session *session, httpClient *HttpClient) Deployer {
+	return &remoteDeployer{
 		session:        session,
-		downloader:     newDownloader(httpClient),
+		downloader:     newRemoteDownloader(httpClient),
 		deployMetadata: make(chan *DeployBinding),
-		ConfigDeployed: make(chan *agentData),
+		configDeployed: make(chan *AgentData),
 	}
 }
 
-func (d *deployer) Startup() error {
-	var err error
-
+func (d *remoteDeployer) Startup() error {
 	d.publisher = newCommandPublisher()
 
-	if d.deploySubscriber, err = newCommandSubscriber(d.session.bee, "DEPLOY", d); err != nil {
-		return err
-	}
-	return nil
+	d.deploySubscriber = newCommandSubscriber(d.session.bee, "DEPLOY", d)
+	return d.deploySubscriber.Subscribe()
+}
+
+func (d *remoteDeployer) Deployed() <-chan *AgentData {
+	return d.configDeployed
 }
 
 // messageHandler implementation: Start
-func (d *deployer) processMessage(msg *DataMessage) error {
+func (d *remoteDeployer) processMessage(msg *DataMessage) error {
 	return nil
 }
-func (d *deployer) executeCommand(cmd *CommandMessage) error {
+func (d *remoteDeployer) executeCommand(cmd *CommandMessage) error {
 	switch cmd.Cmd {
 	case Deploy:
 
@@ -57,7 +69,7 @@ func (d *deployer) executeCommand(cmd *CommandMessage) error {
 
 // messageHandler implementation: End
 
-func (d *deployer) Deploy(ctx context.Context) {
+func (d *remoteDeployer) Deploy(ctx context.Context) {
 
 	// TODO: Implement deploy request to be called from the controller. Implement goroutine inside the method...
 	go func() {
@@ -71,7 +83,7 @@ func (d *deployer) Deploy(ctx context.Context) {
 			case metadata := <-d.deployMetadata:
 				agentData, err := d.downloadResources(metadata)
 				if agentData != nil {
-					d.ConfigDeployed <- agentData
+					d.configDeployed <- agentData
 				}
 				if err != nil {
 					// TODO: log error
@@ -82,9 +94,9 @@ func (d *deployer) Deploy(ctx context.Context) {
 	}()
 }
 
-func (d *deployer) deployRequest(ctx context.Context) {
+func (d *remoteDeployer) deployRequest(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Second)
-	var agentData *agentData
+	var agentData *AgentData
 	var err error
 
 	// Publishes a deploy request
@@ -98,7 +110,7 @@ func (d *deployer) deployRequest(ctx context.Context) {
 
 			agentData, err = d.downloadResources(metadata)
 			if agentData != nil {
-				d.ConfigDeployed <- agentData
+				d.configDeployed <- agentData
 				return
 			}
 			if err != nil {
@@ -118,7 +130,7 @@ func (d *deployer) deployRequest(ctx context.Context) {
 	}
 }
 
-func (d *deployer) downloadResources(metadata *DeployBinding) (data *agentData, err error) {
+func (d *remoteDeployer) downloadResources(metadata *DeployBinding) (data *AgentData, err error) {
 	if !metadata.IsEmpty() {
 
 		// TODO: Based on metadata.ConfigHash determine if the agent's config has to be updated
@@ -132,6 +144,78 @@ func (d *deployer) downloadResources(metadata *DeployBinding) (data *agentData, 
 		}
 		return
 	}
-	data = &agentData{} // Empty agent data
+	data = &AgentData{} // Empty agent data
 	return
+}
+
+// LOCAL DEPLOYER
+
+type localDeployer struct {
+	session        *session
+	configDeployed chan *AgentData
+}
+
+func newLocalDeployer(session *session) Deployer {
+	return &localDeployer{
+		session:        session,
+		configDeployed: make(chan *AgentData),
+	}
+}
+
+func (d *localDeployer) Startup() error {
+	return nil
+}
+
+func (d *localDeployer) Deploy(ctx context.Context) {
+
+	configPath := d.session.configPath
+
+	file, err := os.Open(configPath)
+	if err != nil {
+		log.Error("Error opening config file: ", err)
+		return
+	}
+
+	var config BeeConfiguration
+	decoder := json.NewDecoder(file)
+	err = decoder.Decode(&config)
+	file.Close()
+	if err != nil {
+		log.Error("Error decoding config file: ", err)
+		return
+	}
+
+	hash, err := calculateHash(&config)
+	if err != nil {
+		log.Error("Error calculating config hash: ", err)
+		return
+	}
+
+	agentData := &AgentData{
+		ConfigId:   configPath,
+		ConfigHash: hash,
+		Config:     &config,
+		Resources:  make(map[string][]byte),
+	}
+
+	d.configDeployed <- agentData
+
+	// // If config.watch is true, watch for changes in the configuration file
+	// if config.Watch {
+	// 	// TODO: Implement file watching logic
+	// }
+}
+
+func (d *localDeployer) Deployed() <-chan *AgentData {
+	// Return the channel that is whatching for the deployed config in the local file system
+	return d.configDeployed
+}
+
+func calculateHash(config *BeeConfiguration) (string, error) {
+	configBytes, err := json.Marshal(config)
+	if err != nil {
+		return "", err
+	}
+	hash := sha256.Sum256(configBytes)
+	return hex.EncodeToString(hash[:]), nil
 }

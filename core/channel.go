@@ -19,6 +19,7 @@ type ChannelProvider func(channelType string, logger Logger) Channel
 
 type Parameters map[string]string
 
+// DEPRECATED
 type ChannelReceiver interface {
 	MessageReceived(msg *DataMessage)
 	CommandReceived(cmd *CommandMessage)
@@ -27,6 +28,7 @@ type ChannelReceiver interface {
 type ChannelBase struct {
 }
 
+// DEPRECATED
 func UseChannelMessagingReceiver(proxy ChannelProxy, receiver ChannelReceiver) {
 	go func() {
 		for {
@@ -77,42 +79,79 @@ type ChannelInfo struct {
 	Resources map[string][]byte
 	Mappings  map[string][]byte
 	Patterns  map[string]string
+	Topics    map[string]string
+}
+
+// PatternPublisher  = "pub"
+// PatternSubscriber = "sub"
+// PatternService    = "srv"
+// PatternClient     = "cli"
+// PatternProducer   = "prod"
+// PatternConsumer   = "cons"
+
+func (c *ChannelInfo) IsEmitter(routeId string) bool {
+	pattern := c.Patterns[routeId]
+	return pattern == PatternPublisher || pattern == PatternProducer || pattern == PatternClient
+}
+
+func (c *ChannelInfo) IsReceiver(routeId string) bool {
+	pattern := c.Patterns[routeId]
+	return pattern == PatternSubscriber || pattern == PatternConsumer || pattern == PatternService
 }
 
 type ChannelProxy interface {
+	IsEmbedded() bool
+	BeeId() string
 	Metadata() *ChannelMetadata
 	Config() *ChannelInfo
 	DataReceiver() chan *DataMessage
 	CommandReceiver() chan *CommandMessage
 	Request(route string, params Parameters, data []byte) ([]byte, error)
-	Publish(route string, params Parameters, data []byte) error
+	Publish(route string, params Parameters, data interface{}) error
 	Command(op Command, params Parameters, data []byte) ([]byte, error)
 	Resource(id string) ([]byte, error)
 	Resources() map[string][]byte
 	SharedMemory() SharedMemory
+	RegisterDataReceiver(func(*DataMessage) error)
+	RegisterCommandReceiver(func(*CommandMessage) error)
 }
 
 type channelProxy struct {
-	channelConfig      *ChannelConfiguration
-	resources          map[string][]byte
-	controller         *controller
-	message            chan *DataMessage
-	command            chan *CommandMessage
-	subscribers        map[string]*subscriber
-	publisher          *publisher
+	channelConfig *ChannelConfiguration
+	resources     map[string][]byte
+	controller    *controller
+	message       chan *DataMessage
+	command       chan *CommandMessage
+	subscribers   map[string]Subscriber
+	publisher     Publisher
+	// producer           *producer
 	channelConfigCache *ChannelInfo
 	templates          map[string]*template.Template
+	dataReceiver       func(*DataMessage) error
+	commandReceiver    func(*CommandMessage) error
+}
+
+type routeMeta struct {
+	Route   string
+	Topic   string
+	Pattern string
 }
 
 func newChannelProxy(controller *controller) *channelProxy {
+	// session := controller.session
+
+	publisher := newEmbeddedPublisher()
+	// publisher := newDataPublisher()
+	// producer, _ := newProducer(session.hub) // TODO: Check error
 	return &channelProxy{
 		// channel:     channel,
 		resources:   make(map[string][]byte),
 		controller:  controller,
 		message:     make(chan *DataMessage),
 		command:     make(chan *CommandMessage),
-		subscribers: make(map[string]*subscriber),
-		publisher:   newDataPublisher(),
+		subscribers: make(map[string]Subscriber),
+		publisher:   publisher,
+		// producer:    producer,
 	}
 }
 
@@ -138,12 +177,18 @@ func (c *channelProxy) configureSubscriptions(channelConfig *ChannelConfiguratio
 
 	// SUBSCRIBERS
 
-	topics := []string{}
-	routes := []string{}
+	routesMeta := make(map[string]*routeMeta)
+	// topics := []string{}
+	// routes := []string{}
 	for _, r := range c.channelConfig.Routes {
-		if r.Pattern == "sub" || r.Pattern == "svc" { // TODO: Add "consumer"
-			topics = append(topics, r.Topic)
-			routes = append(routes, r.Metadata.Id)
+		if r.Pattern == PatternSubscriber || r.Pattern == PatternService || r.Pattern == PatternConsumer {
+			// topics = append(topics, r.Topic)
+			// routes = append(routes, r.Metadata.Id)
+			routesMeta[r.Metadata.Id] = &routeMeta{
+				Route:   r.Metadata.Id,
+				Topic:   r.Topic,
+				Pattern: r.Pattern,
+			}
 		}
 	}
 
@@ -151,21 +196,47 @@ func (c *channelProxy) configureSubscriptions(channelConfig *ChannelConfiguratio
 
 	// Remove unused subscribers
 	for _, sub := range c.subscribers {
-		if !contains(topics, sub.Topic()) {
+		if _, found := routesMeta[sub.Route()]; !found {
 			if err := sub.Unsubscribe(); err != nil {
 				errorMsgs = append(errorMsgs, err.Error()) // TODO: Store current error in a formatted way...
 			}
-			delete(c.subscribers, sub.Topic())
+			delete(c.subscribers, sub.Route())
 		}
 	}
 	// Create and insert new added subscribers
-	for topicIdx, topic := range topics {
-		if _, found := c.subscribers[topic]; !found {
-			sub, err := newDataSubscriber(topic, routes[topicIdx], c)
-			if err != nil {
+	for routeId, meta := range routesMeta {
+		if _, found := c.subscribers[routeId]; !found {
+
+			var sub Subscriber
+			var err error = nil
+			isEmbedded := c.controller.session.IsEmbedded()
+
+			// Select a subscriber type based on the pattern
+			switch meta.Pattern {
+
+			case PatternSubscriber:
+				if isEmbedded {
+					sub = newEmbeddedSubscriber(meta.Topic, routeId, c)
+				} else {
+					sub = newDataSubscriber(meta.Topic, routeId, c)
+				}
+
+			case PatternService:
+				sub = newDataSubscriber(meta.Topic, routeId, c)
+
+			case PatternConsumer:
+				session := c.controller.session
+				sub, err = newStreamConsumer(meta.Topic, routeId, session.hub, session.bee, c)
+			}
+			if err == nil { // Subscribe if no error and store the subscriber in the map
+				err = sub.Subscribe()
+				if err == nil {
+					c.subscribers[routeId] = sub
+				}
+			}
+			if err != nil { // If error then store the error message
 				errorMsgs = append(errorMsgs, err.Error()) // TODO: Store current error in a formatted way...
 			}
-			c.subscribers[topic] = sub
 		}
 	}
 	if len(errorMsgs) > 0 {
@@ -173,6 +244,31 @@ func (c *channelProxy) configureSubscriptions(channelConfig *ChannelConfiguratio
 		return errors.New("managing subscribers error") // TODO: Specific error wrapping all the error messages
 	}
 	return nil
+
+	// // Remove unused subscribers
+	// for _, sub := range c.subscribers {
+	// 	if !contains(topics, sub.Topic()) {
+	// 		if err := sub.Unsubscribe(); err != nil {
+	// 			errorMsgs = append(errorMsgs, err.Error()) // TODO: Store current error in a formatted way...
+	// 		}
+	// 		delete(c.subscribers, sub.Topic())
+	// 	}
+	// }
+	// // Create and insert new added subscribers
+	// for topicIdx, topic := range topics {
+	// 	if _, found := c.subscribers[topic]; !found {
+	// 		sub, err := newDataSubscriber(topic, routes[topicIdx], c)
+	// 		if err != nil {
+	// 			errorMsgs = append(errorMsgs, err.Error()) // TODO: Store current error in a formatted way...
+	// 		}
+	// 		c.subscribers[topic] = sub
+	// 	}
+	// }
+	// if len(errorMsgs) > 0 {
+	// 	fmt.Println("ERRORS:", errorMsgs)
+	// 	return errors.New("managing subscribers error") // TODO: Specific error wrapping all the error messages
+	// }
+	// return nil
 }
 
 func (c *channelProxy) storeResources(resources map[string][]byte) {
@@ -200,6 +296,8 @@ func (c *channelProxy) executeCommand(cmd *CommandMessage) error {
 
 // CHANNEL PROXY INTERFACE IMPLEMENTATION
 
+func (c *channelProxy) IsEmbedded() bool                      { return c.controller.session.IsEmbedded() }
+func (c *channelProxy) BeeId() string                         { return c.controller.session.bee }
 func (c *channelProxy) DataReceiver() chan *DataMessage       { return c.message }
 func (c *channelProxy) CommandReceiver() chan *CommandMessage { return c.command }
 func (c *channelProxy) Metadata() *ChannelMetadata            { return c.channelConfig.Metadata }
@@ -210,10 +308,12 @@ func (c *channelProxy) Config() *ChannelInfo {
 			Resources: c.resources,
 			Mappings:  make(map[string][]byte),
 			Patterns:  make(map[string]string),
+			Topics:    make(map[string]string),
 		}
 		for _, route := range c.channelConfig.Routes {
 			c.channelConfigCache.Mappings[route.Metadata.Id] = route.Mapping
 			c.channelConfigCache.Patterns[route.Metadata.Id] = route.Pattern
+			c.channelConfigCache.Topics[route.Metadata.Id] = route.Topic
 		}
 	}
 	return c.channelConfigCache
@@ -227,23 +327,54 @@ func (c *channelProxy) Request(route string, params Parameters, data []byte) ([]
 	// }
 	return nil, nil
 }
-func (c *channelProxy) Publish(route string, params Parameters, data []byte) error {
+func (c *channelProxy) Publish(route string, params Parameters, data interface{}) error {
+	pattern, ok := c.channelConfigCache.Patterns[route]
+	if !ok {
+		return errors.New("route not found")
+	}
+
 	var topic string
 
-	// Process topic templates using received params
-	template, ok := c.templates[route]
-	if ok {
-		var topicBfm bytes.Buffer
-		err := template.Execute(&topicBfm, params)
+	if pattern != PatternProducer {
+
+		// Process topic templates using received params
+		template, ok := c.templates[route]
+		if ok {
+			var topicBfm bytes.Buffer
+			err := template.Execute(&topicBfm, params)
+			if err != nil {
+				return err
+			}
+			topic = topicBfm.String()
+		} else {
+			// If topic is not templated...
+			// topic = getTopic(route, c.channelConfig.Routes)
+			topic = c.channelConfigCache.Topics[route]
+		}
+		// return c.publisher.Publish(topic, data)
+	} else {
+		// Using streams
+		topic = c.channelConfigCache.Topics[route]
+		// return c.producer.Publish(topic, data)
+	}
+
+	// If embedded, publish data directly. No serialization needed
+	if c.IsEmbedded() {
+		return c.publisher.Publish(topic, data)
+	}
+
+	// Convert data to bytes if needed. Otherwise, use the data as bytes
+	var bytes []byte
+	if byteData, ok := data.([]byte); ok {
+		bytes = byteData
+	} else {
+		var err error
+		bytes, err = json.Marshal(data)
 		if err != nil {
 			return err
 		}
-		topic = topicBfm.String()
-	} else {
-		// If topic is not templated...
-		topic = getTopic(route, c.channelConfig.Routes)
 	}
-	return c.publisher.Publish(topic, data)
+	return c.publisher.Publish(topic, bytes)
 }
 func (c *channelProxy) Command(cmd Command, params Parameters, data []byte) ([]byte, error) {
 	return nil, nil
@@ -260,16 +391,22 @@ func (c *channelProxy) Resources() map[string][]byte {
 func (c *channelProxy) SharedMemory() SharedMemory {
 	return c.controller.resources
 }
-
-// Utils
-func contains(elems []string, v string) bool {
-	for _, s := range elems {
-		if v == s {
-			return true
-		}
-	}
-	return false
+func (c *channelProxy) RegisterDataReceiver(handler func(*DataMessage) error) {
+	c.dataReceiver = handler
 }
+func (c *channelProxy) RegisterCommandReceiver(handler func(*CommandMessage) error) {
+	c.commandReceiver = handler
+}
+
+// // Utils
+// func contains(elems []string, v string) bool {
+// 	for _, s := range elems {
+// 		if v == s {
+// 			return true
+// 		}
+// 	}
+// 	return false
+// }
 
 func getTopic(routeId string, routes []*ChannelRoute) string {
 	var route *ChannelRoute

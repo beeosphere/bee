@@ -9,24 +9,30 @@ import (
 	"time"
 
 	"github.com/nats-io/nkeys"
-	log "github.com/sirupsen/logrus"
+	// log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
+
+type Provisioner interface {
+	OpenSession(ctx context.Context) error
+}
+
+// REMOTE PROVISIONER
 
 func ErrAuthLogin(err error) error { return fmt.Errorf("auth error: %w", err) }
 func ErrKeyFormat(err error) error { return fmt.Errorf("private key format error: %w", err) }
 
-type provisioner struct {
+type remoteProvisioner struct {
 	session *session
 	http    *HttpClient
 }
 
-func newProvisioner(session *session, httpClient *HttpClient) *provisioner {
+func newRemoteProvisioner(session *session, httpClient *HttpClient) Provisioner {
 
-	return &provisioner{session: session, http: httpClient}
+	return &remoteProvisioner{session: session, http: httpClient}
 }
 
-func (p *provisioner) openSession(ctx context.Context) error {
+func (p *remoteProvisioner) OpenSession(ctx context.Context) error {
 
 	// Extracts public key from seed
 	keys, err := nkeys.FromSeed([]byte(p.session.Seed()))
@@ -97,4 +103,18 @@ func isEConnRefused(err error) bool {
 		return netError.Syscall == "connect" && netError.Err == unix.ECONNREFUSED
 	}
 	return false
+}
+
+// LOCAL PROVISIONER
+
+type localProvisioner struct {
+	session *session
+}
+
+func newLocalProvisioner(session *session) Provisioner {
+	return &localProvisioner{session: session}
+}
+
+func (p *localProvisioner) OpenSession(ctx context.Context) error {
+	return nil
 }
