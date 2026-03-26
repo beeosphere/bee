@@ -10,6 +10,7 @@ require (
 	github.com/knadh/koanf/providers/file v1.1.2
 	github.com/knadh/koanf/providers/posflag v0.1.0
 	github.com/knadh/koanf/v2 v2.1.2
+	github.com/maypok86/otter v1.2.4
 	github.com/nats-io/nats.go v1.39.0
 	github.com/nats-io/nkeys v0.4.9
 	github.com/samber/lo v1.49.1
@@ -20,7 +21,9 @@ require (
 )
 
 require (
+	github.com/dolthub/maphash v0.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
+	github.com/gammazero/deque v1.0.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect

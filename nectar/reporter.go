@@ -8,6 +8,10 @@ import (
 	"github.com/beeosphere/bee/core"
 )
 
+const (
+	maxSamples = 100 // Adjust this value based on your needs
+)
+
 type Stats struct {
 	Operation  string
 	signalsQty int
@@ -29,10 +33,24 @@ func NewReporter(logger core.Logger) Reporter {
 	}
 }
 
+//	func (r *reporter) AddOperation(route string, operation string, signalsQty int, start time.Time) {
+//		elapsed := time.Since(start)
+//		stats, _ := r.ops.LoadOrStore(route, &Stats{Operation: operation, signalsQty: signalsQty})
+//		s := stats.(*Stats)
+//		s.durations = append(s.durations, elapsed)
+//		s.triggers = append(s.triggers, start)
+//	}
 func (r *reporter) AddOperation(route string, operation string, signalsQty int, start time.Time) {
 	elapsed := time.Since(start)
 	stats, _ := r.ops.LoadOrStore(route, &Stats{Operation: operation, signalsQty: signalsQty})
 	s := stats.(*Stats)
+
+	// Add new samples using sliding window
+	if len(s.durations) >= maxSamples {
+		// Remove oldest sample
+		s.durations = s.durations[1:]
+		s.triggers = s.triggers[1:]
+	}
 	s.durations = append(s.durations, elapsed)
 	s.triggers = append(s.triggers, start)
 }
@@ -49,7 +67,7 @@ func (r *reporter) Report() {
 		return
 	}
 
-	var result string
+	results := []string{}
 	r.ops.Range(func(key, value interface{}) bool {
 		route := key.(string)
 		stats := value.(*Stats)
@@ -70,12 +88,14 @@ func (r *reporter) Report() {
 			}
 			avgTriggers /= float64(len(stats.triggers) - 1)
 		}
-		result += fmt.Sprintf("(route: %s) %s %d signals %d times every %.2f ms (%.2f ms/op)\n",
-			route, stats.Operation, stats.signalsQty, r.counter, avgTriggers, avgDuration)
+		results = append(results, fmt.Sprintf("Route: %s. %s %d signals %d times every %.2f ms (%.2f ms/op)",
+			route, stats.Operation, stats.signalsQty, r.counter, avgTriggers, avgDuration))
 		return true
 	})
-	if result != "" {
-		r.log.Debug(result)
+	if len(results) > 0 {
+		for _, result := range results {
+			r.log.Debug(result)
+		}
 	}
 }
 

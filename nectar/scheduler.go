@@ -10,6 +10,8 @@ type scheduler struct {
 	stop      chan struct{}
 	intervals []IntervalOptions
 	closeOnce sync.Once
+	mu        sync.RWMutex // Add mutex for thread safety
+	stopped   bool         // Add flag to track stopped state
 }
 
 func NewScheduler() Scheduler {
@@ -17,6 +19,7 @@ func NewScheduler() Scheduler {
 		next:      make(chan string),
 		stop:      make(chan struct{}),
 		intervals: []IntervalOptions{},
+		stopped:   false,
 	}
 }
 
@@ -55,7 +58,19 @@ func (s *scheduler) Start(onScheduled func(string)) {
 			for {
 				select {
 				case <-ticker.C:
-					s.next <- interval.Route
+					// Check if scheduler is stopped before sending
+					s.mu.RLock()
+					isStopped := s.stopped
+					s.mu.RUnlock()
+
+					if !isStopped {
+						select {
+						case s.next <- interval.Route:
+							// Successfully sent
+						case <-s.stop:
+							return
+						}
+					}
 				case <-s.stop:
 					return
 				}
@@ -65,6 +80,11 @@ func (s *scheduler) Start(onScheduled func(string)) {
 }
 
 func (s *scheduler) Stop() {
+	// Mark as stopped first
+	s.mu.Lock()
+	s.stopped = true
+	s.mu.Unlock()
+
 	close(s.stop)
 	s.closeOnce.Do(func() {
 		close(s.next)

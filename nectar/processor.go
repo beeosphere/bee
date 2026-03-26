@@ -22,6 +22,7 @@ type processor[S, M, SigMeta any] struct {
 	jobChan     chan *SignalsJob
 	collectChan chan *SignalsPack
 	collectCb   func(data *SignalsPack)
+	writeLock   sync.Mutex
 }
 
 func NewProcessor[S, M, SigMeta any](logger core.Logger, driver Driver, reporter Reporter) Processor[S, M, SigMeta] {
@@ -59,9 +60,11 @@ func (p *processor[S, M, SigMeta]) Run(cfg *RuntimeSettings[S, M, SigMeta]) {
 	// Start the scheduler if it is available
 	if p.scheduler != nil {
 		p.scheduler.Start(func(route string) {
-			p.jobChan <- &SignalsJob{
-				Route: route,
-				Type:  Read,
+			if p.ConnState() == Connected {
+				p.jobChan <- &SignalsJob{
+					Route: route,
+					Type:  Read,
+				}
 			}
 		})
 	}
@@ -73,6 +76,9 @@ func (p *processor[S, M, SigMeta]) Stop() {
 	}
 	p.setConnState(Disconnected)
 	p.runCancel()
+
+	// Wait for all running jobs to complete
+	p.routeGroup.Wait()
 }
 
 func (p *processor[S, M, SigMeta]) DispatchSignals(pack *SignalsPack) {
@@ -101,11 +107,12 @@ func (p *processor[S, M, SigMeta]) doProcess(ctx context.Context) {
 
 		select {
 		case job := <-p.jobChan:
-			if p.RouteState(job.Route) == Executing {
-				// TODO: Report it, discard or queue the job and continue
-				p.reporter.AddDiscardedOperation(job.Route, job.Type.String())
-				continue
-			}
+			// if p.RouteState(job.Route) == Executing {
+			// 	// TODO: Report it, discard or queue the job and continue
+			// 	p.reporter.AddDiscardedOperation(job.Route, job.Type.String())
+			// 	continue
+			// }
+			p.setRouteState(job.Route, Executing)
 			go p.executeJob(job)
 		case <-ctx.Done():
 			// Exit the goroutine when context is done (processor is stopped).
@@ -136,7 +143,7 @@ func (p *processor[S, M, SigMeta]) disconnect() {
 }
 
 func (p *processor[S, M, SigMeta]) executeJob(job *SignalsJob) {
-	p.setRouteState(job.Route, Executing)
+	// p.setRouteState(job.Route, Executing)
 	p.routeGroup.Add(1)
 	defer p.routeGroup.Done()
 
@@ -169,6 +176,9 @@ func (p *processor[S, M, SigMeta]) doExecute(job *SignalsJob) error {
 
 	} else if job.Type == Write {
 		// TODO: Take into account queue jobs...
+		p.writeLock.Lock()
+		defer p.writeLock.Unlock()
+
 		err := p.driver.WriteSignals(job.Signals)
 		if err != nil {
 			return err

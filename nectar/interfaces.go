@@ -108,6 +108,23 @@ type Processor[Settings, Mapping, SignalMetadata any] interface {
 	OnSignalsCollected(fn func(pack *SignalsPack))
 }
 
+// SIGNAL LOCKER
+
+type SignalLocker interface {
+	Value(signalId string) (value any, found bool)
+	TryUpdate(signalId string, value any) UpdateResult
+	Update(signalId string, value any) error
+}
+
+// ROUTE WATCHDOG
+
+type RouteWatchdog interface {
+	Start()
+	Stop()
+	RouteAlive(route string)
+	OnMissedRoutes(fn func(routes []string))
+}
+
 // CACHE
 
 type Cache interface {

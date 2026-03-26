@@ -1,0 +1,38 @@
+{
+  "agentType": "Bee",
+  "connectors": [
+    {
+      "id": "cn1", // Unique identifier for the connector
+      "name": "Connector 1", // Human-readable name for the connector (optional)
+      "type": "", // Type of the connector (optional). Agent specific
+      "schemaVersion": 1, // Version of the connector schema (optional)
+      "settings": { // Connector specific settings. Agent specific
+      },
+      "channels": [ // List of channels associated with the connector
+        {
+          "id": "ch1", // Unique identifier for the channel
+          "name": "Channel 1", // Human-readable name for the channel (optional)
+          "pattern": "pub", // Communication pattern
+          "topic": "bee1.topic1", // Topic of the channel
+          "parser": "nectar", // Parser type (optional). Agent specific
+          "spec": { // Parser specific settings (Showing nectar parser))
+            "options": { // Additional options for the parser
+              "samplingInterval": 1000
+            },
+            "labels": { // Classification labels for the data (only emitter channels)
+              "device": "d1",
+              "sensor": "s1"
+            },
+            "signals": [ // List of signals defined in the channel
+              { 
+                "id": "signal1",
+                "type": "int32",
+                "map": {} // Mapping configuration for the signal
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

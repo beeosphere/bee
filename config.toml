@@ -1,7 +1,7 @@
 [agent]
 id = "bee0"
 key = "SUACEN57PJE3EQWYLQIY2SAYFU7O72VLFL3PQQIYJEZMW3VPT3FSB6GQLM"
-hive = "kraaisoft.local:8080"
+hive = "localhost:8080"
 log = "debug"
 
 # Example of multiple agents in standalone mode using local configuration files
@@ -23,11 +23,11 @@ config.watch = false
 [agents.opcua-2]
 id = "bee3"
 key = "SUACEN57PJE3EQWYLQIY2SAYFU7O72VLFL3PQQIYJEZMW3VPT3FSB6GQLM"
-hive = "kraaisoft.local:8080"
+hive = "localhost:8080"
 log = "debug"
 
 [agents.s7-2]
 id = "bee4"
 key = "SUACEN57PJE3EQWYLQIY2SAYFU7O72VLFL3PQQIYJEZMW3VPT3FSB6GQLM"
-hive = "kraaisoft.local:8080"
+hive = "localhost:8080"
 log = "debug"
