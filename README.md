@@ -14,14 +14,9 @@ Distributed **collectors and actuators can be deployed wherever they are needed*
 
 📖 Full documentation at [docs.beeos.net](https://docs.beeos.net)
 
-# Bee Agents
+# Bee Core SDK
 
-The bee module is the core of BeeOS agents. It connects bees to a hive and acts as the proxy between the hive and the concrete bee implementation.
-
-Two execution models are supported:
-
-- **Agent context** – a lightweight agent that receives lifecycle events and a model configuration. Suitable for simple integrations or services that manage their own internal logic.
-- **Connector context** – a structured agent backed by the `nectar` engine, which composes a driver, collector, and distributor to handle signal acquisition and distribution.
+This repository provides the **core Go SDK** for developing bee agents — the building blocks used to integrate any protocol or service into the BeeOS IoT platform. A bee agent connects to a hive, receives lifecycle events and model configuration, and implements the integration logic for a specific protocol, hardware device, or external service.
 
 ## Installation
 
@@ -29,60 +24,13 @@ Two execution models are supported:
 go get github.com/beeosphere/bee
 ```
 
-## Configuration
+## Agent development
 
-Create a `config.toml` file to configure the agent identity and hive connection:
+### Implementing an agent
 
-```toml
-[agent]
-id = "bee0"
-key = "SUACEN57PJE3EQWYLQIY2SAYFU7O72VLFL3PQQIYJEZMW3VPT3FSB6GQLM"
-hive = "localhost:8080"
-log = "debug"
-```
-
-| Field  | Description                                              |
-|--------|----------------------------------------------------------|
-| `id`   | Unique identifier for this agent                         |
-| `key`  | Authentication key used to connect to the hive           |
-| `hive` | Address of the hive server                               |
-| `log`  | Log level (`debug`, `info`, `warn`, `error`)             |
-
-Then start your bee executable passing the config file:
-
-```bash
-yourbee -c config.toml
-```
-
-## Agents development
-
-### Using agent context
-
-Use `WithAgentProvider` when you need a simple agent that responds to lifecycle callbacks. The `AgentContext` is passed to `Started` and gives access to hive connectivity.
+Define your model and implement the `Agent` interface with `Started`, `Configured`, and `Stopped` lifecycle callbacks. The `AgentContext` passed to `Started` gives access to hive connectivity.
 
 ```go
-package main
-
-import (
-	"github.com/beeosphere/bee/agent/bee"
-	"github.com/beeosphere/bee/agent/models"
-)
-
-func main() {
-	var Manifest = models.AgentManifest{
-		Name:    "MyAgent",
-		Type:    "my-agent",
-		Version: "1.0.0",
-	}
-
-	bee.NewBee(
-		bee.WithManifest(Manifest),
-		bee.WithAgentProvider(func(logger models.Logger) models.Agent {
-			return NewMyAgent(logger)
-		}),
-	).Buzz()
-}
-
 type MyModel struct {
 	Data string `json:"data"`
 }
@@ -112,9 +60,9 @@ func (ag *MyAgent) Stopped() error {
 }
 ```
 
-### Using connector context
+### Initializing the agent
 
-Use `WithConnectorProvider` when your agent needs to collect and distribute signals via the `nectar` engine. The engine is wired with a driver (connection management), a collector (signal acquisition), and a distributor (signal delivery).
+Use `NewBee` with `WithAgentProvider` to wire your agent into the BeeOS runtime, then call `Buzz` to start it. `Buzz` blocks until the agent is shut down (e.g. via `Ctrl+C`).
 
 ```go
 package main
@@ -122,147 +70,48 @@ package main
 import (
 	"github.com/beeosphere/bee/agent/bee"
 	"github.com/beeosphere/bee/agent/models"
-	"github.com/beeosphere/bee/agent/nectar"
 )
 
 func main() {
 	var Manifest = models.AgentManifest{
-		Name:    "MyConnector",
-		Type:    "my-connector",
+		Name:    "MyAgent",
+		Type:    "my-agent",
 		Version: "1.0.0",
 	}
 
-	bee.NewBee(
+	agent := bee.NewBee(
 		bee.WithManifest(Manifest),
-		bee.WithConnectorProvider(func(connectorType string, logger models.Logger) models.Connector {
-			return NewMyConnector(logger)
+		bee.WithAgentProvider(func(logger models.Logger) models.Agent {
+			return NewMyAgent(logger)
 		}),
-	).Buzz()
-}
-
-type MySettings struct {
-	Data string `json:"data"`
-}
-
-type MyConnector struct {
-	log    models.Logger
-	engine *nectar.Engine
-}
-
-func NewMyConnector(logger models.Logger) models.Connector {
-	return &MyConnector{log: logger}
-}
-
-func (c *MyConnector) Started(cc *models.ConnectorContext) error {
-	c.log.Info("MyConnector started")
-
-	c.engine = nectar.NewEngine(cc,
-		nectar.WithDriver(NewMyDriverBuilder()),
-		nectar.WithCollector(NewMyCollectorBuilder()),
-		nectar.WithDistributor(NewMyDistributorBuilder()))
-	return nil
-}
-
-func (c *MyConnector) Configured(model *models.ConnectorSetup) error {
-	if err := c.engine.Run(model.Config); err != nil {
-		return err
-	}
-	c.log.Infof("MyConnector configured with model ID: %s", model.Config.Id)
-	return nil
-}
-
-func (c *MyConnector) Stopped() error {
-	if err := c.engine.Stop(); err != nil {
-		return err
-	}
-	c.log.Info("MyConnector stopped")
-	return nil
+	)
+	agent.Buzz()
 }
 ```
 
-#### Driver
+## Configuration
 
-The driver manages the physical or logical connection to the data source.
+Create a `config.toml` file to configure the agent identity and hive connection:
 
-```go
-type MyDriver struct {
-	connected bool
-	settings  *MySettings
-}
-
-func (d *MyDriver) Connect() error    { d.connected = true; return nil }
-func (d *MyDriver) Disconnect() error { d.connected = false; return nil }
-func (d *MyDriver) IsConnected() bool { return d.connected }
-
-func NewMyDriverBuilder() nectar.DriverBuilder {
-	return func(settings any) (nectar.Driver, error) {
-		s, err := nectar.DeserializeSettings[MySettings](settings)
-		if err != nil {
-			return nil, errors.New("invalid settings for MyDriver")
-		}
-		return &MyDriver{settings: s}, nil
-	}
-}
+```toml
+[agent]
+id = "bee0"
+key = "SUACEN57PJE3EQWYLQIY2SAYFU7O72VLFL3PQQIYJEZMW3VPT3FSB6GQLM"
+hive = "localhost:8080"
+log = "debug"
 ```
 
-#### Collector
+| Field  | Description                                              |
+|--------|----------------------------------------------------------|
+| `id`   | Unique identifier for this agent                         |
+| `key`  | Authentication key used to connect to the hive           |
+| `hive` | Address of the hive server                               |
+| `log`  | Log level (`debug`, `info`, `warn`, `error`)             |
 
-The collector samples signals at a configurable interval and forwards them to the nectar engine.
+Then build the code and start your bee executable passing the config file:
 
-```go
-type MyCollector struct {
-	nectar.CollectorBase
-}
-
-func NewMyCollectorBuilder() nectar.CollectorBuilder {
-	return func(channel *nectar.Channel) (nectar.Collector, error) {
-		return &MyCollector{
-			CollectorBase: nectar.NewCollectorBase(channel),
-		}, nil
-	}
-}
-
-func (c *MyCollector) OnCollectSignals() <-chan *nectar.CollectorData {
-	go func() {
-		for {
-			msg := &nectar.NectarMessage{
-				Labels:  nectar.Labels{"device": "d1", "sensor": "s1"},
-				Signals: []nectar.Signal{ /* populate signals */ },
-			}
-			c.Collected <- &nectar.CollectorData{
-				Channel: c.ChannelId,
-				Message: msg,
-			}
-			time.Sleep(time.Second)
-		}
-	}()
-	return c.Collected
-}
-```
-
-#### Distributor
-
-The distributor receives collected signals and delivers them to their destination.
-
-```go
-type MyDistributor struct {
-	nectar.DistributorBase
-}
-
-func NewMyDistributorBuilder() nectar.DistributorBuilder {
-	return func(channel *nectar.Channel) (nectar.Distributor, error) {
-		return &MyDistributor{
-			DistributorBase: nectar.NewDistributorBase(channel),
-		}, nil
-	}
-}
-
-func (d *MyDistributor) Initialize() error { return nil }
-
-func (d *MyDistributor) DistributeSignals(msg *nectar.NectarMessage) error {
-	// Publish to a broker, write to a database, forward to an external service, etc.
-	return nil
-}
+```bash
+./bee -c config.toml
 ```
 
 ## License
