@@ -46,10 +46,22 @@ func NewMyAgent(logger models.Logger) models.Agent {
 
 func (ag *MyAgent) Started(ac *models.AgentContext) error {
 	ag.log.Info("MyAgent started")
+
+	// ac.Bus provides access to the hive message bus.
+	// Use it to publish messages to a channel:
+	//   ac.Bus.Publish("channel-id", payload)
+	//
+	// Or subscribe to receive messages from a channel:
+	//   ac.Bus.Subscribe("channel-id", func(msg *models.Message) {
+	//       ag.log.Infof("received: %v", msg)
+	//   })
+
 	return nil
 }
 
 func (ag *MyAgent) Configured(model *models.Model) error {
+	// model.Data holds the agent-specific configuration pushed from the hive.
+	// Deserialize it into your model to access the settings defined for this bee type.
 	ag.log.Infof("MyAgent configured with model ID: %s", model.Id)
 	return nil
 }
