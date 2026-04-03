@@ -14,7 +14,7 @@ Distributed **collectors and actuators can be deployed wherever they are needed*
 
 📖 Full documentation at [docs.beeos.net](https://docs.beeos.net)
 
-# Bee Core SDK
+# Bee Agent SDK
 
 This repository provides the **core Go SDK** for developing bee agents — the building blocks used to integrate any protocol or service into the BeeOS IoT platform. A bee agent connects to a hive, receives lifecycle events and model configuration, and implements the integration logic for a specific protocol, hardware device, or external service.
 
@@ -60,8 +60,10 @@ func (ag *MyAgent) Started(ac *models.AgentContext) error {
 }
 
 func (ag *MyAgent) Configured(model *models.Model) error {
+
 	// model.Data holds the agent-specific configuration pushed from the hive.
 	// Deserialize it into your model to access the settings defined for this bee type.
+	
 	ag.log.Infof("MyAgent configured with model ID: %s", model.Id)
 	return nil
 }
