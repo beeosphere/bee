@@ -1,6 +1,7 @@
 package core
 
 import (
+	"github.com/beeosphere/bee/agent/internal/core/topics"
 	"github.com/beeosphere/bee/agent/models"
 	"github.com/nats-io/nats.go"
 )
@@ -61,7 +62,7 @@ func (bt busTopic) String() string {
 }
 
 func (bt busTopic) Command() string {
-	return CommandFromTopic(string(bt))
+	return topics.FetchCommand(string(bt))
 }
 
 func NewTopic(topic string) models.BusTopic {

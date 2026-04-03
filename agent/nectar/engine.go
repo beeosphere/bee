@@ -56,8 +56,8 @@ func (c DistributorBase) Finalize() error {
 	return nil
 }
 
-func DeserializeSettings[T any](settings any) (*T, error) {
-	var model T
+func DeserializeSettings[TSettings any](settings any) (*TSettings, error) {
+	var model TSettings
 	if err := core.Deserialize(settings.([]byte), &model); err != nil {
 		return nil, err
 	}

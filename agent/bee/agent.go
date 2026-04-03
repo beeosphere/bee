@@ -159,6 +159,11 @@ func (a *agentEngine) Stop() error {
 }
 
 func (a *agentEngine) logConfig(environment *models.AgentOptions) {
+
+	if a.session.Manifest.Type == "hive" { // Hive agent will print its own info in a nicer format, so skip this part
+		return
+	}
+
 	log := a.log
 
 	log.Infof("BEE ID:           %s", a.session.Bee)

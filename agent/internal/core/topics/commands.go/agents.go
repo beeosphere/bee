@@ -1,0 +1,15 @@
+package commands
+
+// COMMANDS
+const (
+	// Deployment flow
+	DEPLOY_SIG    = "DEPLOY_SIG"
+	DEPLOY        = "DEPLOY"
+	DEPLOY_ACK    = "DEPLOY_ACK"
+	DEPLOY_REQ    = "DEPLOY_REQ"
+	DEPLOYED      = "DEPLOYED"
+	DEPLOY_FAILED = "DEPLOY_FAILED"
+
+	// Misc
+	DISCONNECT_AGENT = "DISCONNECT_AGENT"
+)

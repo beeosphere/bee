@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/beeosphere/bee/agent/internal/core"
+	"github.com/beeosphere/bee/agent/internal/core/topics"
 	"github.com/beeosphere/bee/agent/models"
 )
 
@@ -47,7 +48,7 @@ func NewCommander(session *core.Session, bus models.BusClient) *commander {
 // When a command is received, it invokes all registered callbacks for that command.
 // Returns an error if the subscription fails.
 func (c *commander) SubscribeCommands() error {
-	sub, err := c.bus.Subscribe(core.CommandsReceptionTopic(c.session.Bee), func(msg *models.BusMessage) {
+	sub, err := c.bus.Subscribe(topics.CommandFromHive(c.session.Bee), func(msg *models.BusMessage) {
 		if command := msg.Topic.Command(); command != "" {
 
 			if receivers, ok := c.callbacks[command]; ok {
@@ -80,13 +81,13 @@ func (c *commander) UnsubscribeCommands() error {
 // Send publishes a command to the root hive with the specified data and headers.
 // Returns an error if the publish operation fails.
 func (c *commander) Send(command string, data any, headers models.BusHeaders) error {
-	return c.bus.Publish(core.RootCommandTopic(command), data, headers)
+	return c.bus.Publish(topics.CommandToRootHive(command), data, headers)
 }
 
 // SendToHive publishes a command to a specific hive path with the specified data and headers.
 // Returns an error if the publish operation fails.
 func (c *commander) SendToHive(command, hivePath string, data any, headers models.BusHeaders) error {
-	return c.bus.Publish(core.HiveCommandTopic(command, hivePath), data, headers)
+	return c.bus.Publish(topics.CommandToHive(command, hivePath), data, headers)
 }
 
 // OnCommandReceived registers a callback to be invoked when the specified command is received.

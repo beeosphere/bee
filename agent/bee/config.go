@@ -31,7 +31,7 @@ func initialize() {
 	f.StringP("agent.id", "i", "", "bee identifier")
 	f.StringP("agent.key", "k", "", "bee private seed key")
 	f.StringP("agent.hive", "h", "", "hive URI address")
-	f.StringP("agent.log", "l", "", "log level (debug, info, warn, error)")
+	f.StringP("agent.log", "l", "", "log level (trace, debug, info, warn, error)")
 
 	f.Parse(os.Args[1:])
 

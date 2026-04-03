@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/beeosphere/bee/agent/internal/core"
+	"github.com/beeosphere/bee/agent/internal/core/topics"
 	"github.com/beeosphere/bee/agent/models"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nkeys"
@@ -55,7 +56,7 @@ func (b *busNats) Connect() error {
 			log.Infof("Reconnected to %v\n", nc.ConnectedUrl())
 		}),
 		nats.ClosedHandler(func(nc *nats.Conn) {
-			log.Errorf("Connection closed. Reason: %q\n", nc.LastError())
+			log.Info("Connection closed")
 		}),
 		nats.ConnectHandler(func(nc *nats.Conn) {
 			s := b.session
@@ -92,11 +93,11 @@ func (b *busNats) Publish(topic string, data interface{}, headers models.BusHead
 	}
 	// Prepare message subject
 	var subject string
-	if strings.HasPrefix(topic, core.BEEOS_CMD_PREFIX) {
+	if strings.HasPrefix(topic, topics.CMD_PREFIX) {
 		subject = topic
 		b.log.Tracef("Command [hive <- bee: %s]", subject)
 	} else {
-		subject = core.BEEOS_MSG_PREFIX + topic
+		subject = topics.MessageSubject(topic)
 		b.log.Tracef("Message [hive <- bee: %s (%d bytes)]", topic, len(bytes))
 	}
 	// Add headers if any
@@ -117,23 +118,23 @@ func (b *busNats) Publish(topic string, data interface{}, headers models.BusHead
 func (b *busNats) Subscribe(topic string, handler models.BusHandler) (models.BusSubscription, error) {
 	// Prepare message subject
 	var subject string
-	if strings.HasPrefix(topic, core.BEEOS_CMD_PREFIX) {
+	if strings.HasPrefix(topic, topics.CMD_PREFIX) {
 		subject = topic
 	} else {
-		subject = core.BEEOS_MSG_PREFIX + topic
+		subject = topics.MessageSubject(topic)
 	}
 
 	subs, err := b.conn.Subscribe(subject, func(msg *nats.Msg) {
 
 		var subscribedTopic string
 		var receivedTopic string
-		if strings.HasPrefix(msg.Subject, core.BEEOS_CMD_PREFIX) {
+		if strings.HasPrefix(msg.Subject, topics.CMD_PREFIX) {
 			receivedTopic = msg.Subject
 			subscribedTopic = msg.Sub.Subject
 			b.log.Tracef("Command [hive -> bee: %s]", receivedTopic)
 		} else {
-			receivedTopic = strings.TrimPrefix(msg.Subject, core.BEEOS_MSG_PREFIX)
-			subscribedTopic = strings.TrimPrefix(msg.Sub.Subject, core.BEEOS_MSG_PREFIX)
+			receivedTopic = topics.FetchMessagePart(msg.Subject)
+			subscribedTopic = topics.FetchMessagePart(msg.Sub.Subject)
 			b.log.Tracef("Message [hive -> bee: %s (%d bytes)]", receivedTopic, len(msg.Data))
 		}
 
