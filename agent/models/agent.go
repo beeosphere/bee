@@ -48,7 +48,7 @@ type AgentContext struct {
 }
 
 type Agent interface {
-	Started(actx *AgentContext) error
+	Started(ac *AgentContext) error
 	Configured(model *Model) error
 	Stopped() error
 }

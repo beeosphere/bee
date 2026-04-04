@@ -16,6 +16,7 @@ require (
 	github.com/samber/lo v1.49.1
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/pflag v1.0.6
+	github.com/tidwall/gjson v1.18.0
 	golang.org/x/sync v0.10.0
 	golang.org/x/sys v0.32.0
 )
@@ -34,6 +35,8 @@ require (
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/tetratelabs/wazero v1.3.0 // indirect
+	github.com/tidwall/match v1.1.1 // indirect
+	github.com/tidwall/pretty v1.2.0 // indirect
 	golang.org/x/crypto v0.32.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 )
