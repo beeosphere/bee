@@ -1,7 +1,9 @@
 package busnats
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -22,7 +24,7 @@ func NewBus(session *core.Session) core.Bus {
 	return &busNats{session: session, log: session.Log}
 }
 
-func (b *busNats) Connect() error {
+func (b *busNats) Connect(ctx context.Context) error {
 
 	log := b.log
 
@@ -41,38 +43,49 @@ func (b *busNats) Connect() error {
 	// Connect to a server
 	urls := strings.Join(b.session.BusAddresses, ",")
 
-	con, err := nats.Connect(
-		urls,
-		nats.MaxReconnects(100000), // 1000 -> 30 mins aprox
-		nats.ReconnectWait(10*time.Second),
-		nats.RetryOnFailedConnect(true),
-		nats.Name(b.session.Bee),
-		nats.UserJWT(userJWTHandler, signatureHandler),
-		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
-			// log.Warnf("Disconnected. Reason: %q\n", err)
-			log.Warn("Connection lost")
-		}),
-		nats.ReconnectHandler(func(nc *nats.Conn) {
-			log.Infof("Reconnected to %v\n", nc.ConnectedUrl())
-		}),
-		nats.ClosedHandler(func(nc *nats.Conn) {
-			log.Info("Connection closed")
-		}),
-		nats.ConnectHandler(func(nc *nats.Conn) {
-			s := b.session
-			log.Infof("Connected to hive: %s (hub: %s) as %s (pubKey: %s)\n", urls, s.Hub, s.Bee, core.ShortValue(s.PublicKey))
-		}),
-	)
-	if err != nil {
-		log.Errorf("Error while connecting to Hive")
-		return nil
+	type result struct {
+		conn *nats.Conn
+		err  error
 	}
+	ch := make(chan result, 1)
 
-	// s := b.session
-	// log.Infof("Connecting to hive: %s (hub: %s)\n", urls, s.Hub)
+	go func() {
+		con, err := nats.Connect(
+			urls,
+			nats.MaxReconnects(100000), // 1000 -> 30 mins aprox
+			nats.ReconnectWait(10*time.Second),
+			nats.RetryOnFailedConnect(true),
+			nats.Name(b.session.Bee),
+			nats.UserJWT(userJWTHandler, signatureHandler),
+			nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
+				// log.Warnf("Disconnected. Reason: %q\n", err)
+				log.Warn("Connection lost")
+			}),
+			nats.ReconnectHandler(func(nc *nats.Conn) {
+				log.Infof("Reconnected to %v\n", nc.ConnectedUrl())
+			}),
+			nats.ClosedHandler(func(nc *nats.Conn) {
+				log.Info("Connection closed")
+			}),
+			nats.ConnectHandler(func(nc *nats.Conn) {
+				s := b.session
+				log.Infof("Connected to hive: %s (hub: %s) as %s (pubKey: %s)\n", urls, s.Hub, s.Bee, core.ShortValue(s.PublicKey))
+			}),
+		)
+		ch <- result{con, err}
+	}()
 
-	b.conn = con
-	return nil
+	select {
+	case r := <-ch:
+		if r.err != nil {
+			log.Errorf("Error while connecting to Hive")
+			return r.err
+		}
+		b.conn = r.conn
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("connection cancelled: %w", ctx.Err())
+	}
 }
 
 func (b *busNats) Disconnect() error {

@@ -23,7 +23,7 @@ func (b *beeEngine) Buzz() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	if err := b.agent.Run(); err != nil {
+	if err := b.agent.Run(ctx); err != nil {
 		return err
 	}
 

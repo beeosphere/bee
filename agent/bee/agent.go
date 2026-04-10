@@ -15,7 +15,7 @@ import (
 )
 
 type Agent interface {
-	Run() error
+	Run(ctx context.Context) error
 	Stop() error
 }
 
@@ -130,9 +130,7 @@ func NewAgent(ops ...Opt) Agent {
 	return agent
 }
 
-func (a *agentEngine) Run() error {
-
-	ctx := context.Background()
+func (a *agentEngine) Run(ctx context.Context) error {
 
 	// Step 1. Connects to BeeOS Hive and authenticates using NKeys
 	if err := a.authenticator.OpenSession(ctx); err != nil {
@@ -141,7 +139,7 @@ func (a *agentEngine) Run() error {
 	}
 
 	// Step 2. Subscribes to connector system topics
-	if err := a.controller.Startup(); err != nil {
+	if err := a.controller.Startup(ctx); err != nil {
 		a.log.Error(err)
 		return err
 	}

@@ -1,6 +1,8 @@
 package core
 
 import (
+	"context"
+
 	"github.com/beeosphere/bee/agent/internal/core/topics"
 	"github.com/beeosphere/bee/agent/models"
 	"github.com/nats-io/nats.go"
@@ -24,7 +26,7 @@ func IsEmitter(pattern string) bool {
 // BUS
 
 type BusController interface {
-	Connect() error
+	Connect(ctx context.Context) error
 	Disconnect() error
 }
 

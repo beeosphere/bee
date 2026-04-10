@@ -1,6 +1,8 @@
 package runtime
 
 import (
+	"context"
+
 	"github.com/beeosphere/bee/agent/internal/core"
 	"github.com/beeosphere/bee/agent/models"
 )
@@ -25,9 +27,9 @@ func NewController(session *core.Session, bus core.Bus, synchronizer Synchronize
 	}
 }
 
-func (c *Controller) Startup() error {
+func (c *Controller) Startup(ctx context.Context) error {
 	// BUS CONNECT
-	if err := c.bus.Connect(); err != nil {
+	if err := c.bus.Connect(ctx); err != nil {
 		return err
 	}
 	// COMMAND SUBSCRIPTIONS
